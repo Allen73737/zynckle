@@ -1,0 +1,16 @@
+{
+  "name": "zynckle-local-api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test test/api.test.mjs",
+    "dev": "node --watch server.mjs"
+  },
+  "dependencies": {
+    "lib0": "^0.2.120",
+    "ws": "^8.23.0",
+    "y-protocols": "^1.0.7",
+    "yjs": "^13.6.33"
+  }
+}

@@ -1,0 +1,32 @@
+.code-view pre.code-source {
+  flex: 1;
+  min-height: 0;
+  max-height: 72vh;
+  white-space: pre;
+  tab-size: 2;
+  color: var(--ink);
+  font: 13.5px/1.65 'DM Mono', monospace;
+}
+
+.code-source .hljs-comment, .code-source .hljs-quote {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.code-source .hljs-keyword, .code-source .hljs-selector-tag, .code-source .hljs-literal, .code-source .hljs-built_in {
+  color: var(--ink-strong);
+  font-weight: 650;
+}
+
+.code-source .hljs-title, .code-source .hljs-title.function_, .code-source .hljs-title.class_, .code-source .hljs-type {
+  color: var(--ink-strong);
+  font-weight: 600;
+}
+
+.code-source .hljs-string, .code-source .hljs-number, .code-source .hljs-attr, .code-source .hljs-attribute, .code-source .hljs-variable, .code-source .hljs-symbol {
+  color: var(--muted);
+}
+
+.code-source .hljs-meta, .code-source .hljs-operator, .code-source .hljs-punctuation {
+  color: var(--muted);
+}

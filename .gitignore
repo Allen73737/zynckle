@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Production builds
+dist/
+frontend/dist/
+target/
+
+# Local Environment & Secrets
+.env
+.env.*
+!.env.example
+backend/data/
+backend/data/*
+!backend/data/.gitkeep
+*.secret
+
+# Logs & Temp
+*.log
+*.tsbuildinfo
+.vite-temp/
+*/.vite-temp/
+.DS_Store
+Thumbs.db

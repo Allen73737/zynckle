@@ -1,0 +1,20 @@
+server:
+  port: ${PORT:8080}
+spring:
+  application:
+    name: zynckle-api
+  datasource:
+    url: ${DATABASE_URL:jdbc:h2:file:./data/zynckle;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE}
+    username: ${DATABASE_USERNAME:sa}
+    password: ${DATABASE_PASSWORD:}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+  flyway:
+    enabled: ${FLYWAY_ENABLED:false}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
