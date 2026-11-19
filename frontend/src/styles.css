@@ -184,6 +184,28 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   transform: scale(1.05);
 }
 
+.drawer-collapse-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: all 160ms cubic-bezier(.16, 1, .3, 1);
+  flex: none;
+  padding: 0;
+}
+
+.drawer-collapse-btn:hover {
+  background: var(--surface-hover);
+  border-color: var(--line-focus);
+  color: var(--ink-strong);
+  transform: scale(1.06);
+}
+
 .drawer-brand {
   display: flex;
   align-items: center;
@@ -467,7 +489,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
     z-index: 999;
   }
   .topbar-hamburger {
-    display: flex !important;
+    display: flex;
+  }
+  .app-shell.sidebar-expanded .topbar-hamburger,
+  .app-shell.sidebar-expanded .topbar-brand {
+    display: none !important;
   }
 }
 
@@ -874,8 +900,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   border-color: var(--line-focus);
 }
 
-.app-shell.sidebar-expanded .topbar-hamburger {
-  display: none;
+.app-shell.sidebar-expanded .topbar-hamburger,
+.app-shell.sidebar-expanded .topbar-brand {
+  display: none !important;
 }
 
 .theme-toggle-btn {
@@ -4775,7 +4802,9 @@ p {
   .dock-rail { display: none; }
   .sidebar { inset: 0 auto 0 0; }
   .main-area { margin-left: 0; width: 100%; }
-  .topbar-hamburger { display: inline-flex !important; }
+  .topbar-hamburger { display: inline-flex; }
+  .app-shell.sidebar-expanded .topbar-hamburger,
+  .app-shell.sidebar-expanded .topbar-brand { display: none !important; }
   .topbar { padding: 0 16px; }
   .crumb { display: none; }
   .zy-desktop-only { display: none !important; }

@@ -288,18 +288,31 @@ export default function App() {
     {/* Unified Expanding Side Drawer (Expands inline from side rail) */}
     <aside className="side-drawer" aria-label="Navigation drawer">
       <div className="drawer-header">
-        <button
-          className="drawer-hamburger-btn"
-          onClick={toggleSidebar}
-          aria-label="Toggle navigation drawer (Ctrl+B)"
-          title="Toggle navigation drawer (Ctrl+B)"
-        >
-          <Menu size={22} strokeWidth={2} />
-        </button>
-        <NavLink to="/" className="drawer-brand" aria-label="Zynckle home">
-          <span className="brand-mark">z</span>
-          <span>zynckle</span>
-        </NavLink>
+        {sidebarExpanded ? (
+          <>
+            <NavLink to="/" className="drawer-brand" aria-label="Zynckle home">
+              <span className="brand-mark">z</span>
+              <span>zynckle</span>
+            </NavLink>
+            <button
+              className="drawer-collapse-btn"
+              onClick={toggleSidebar}
+              aria-label="Collapse navigation drawer (Ctrl+B)"
+              title="Collapse navigation drawer (Ctrl+B)"
+            >
+              <X size={18} strokeWidth={2} />
+            </button>
+          </>
+        ) : (
+          <button
+            className="drawer-hamburger-btn"
+            onClick={toggleSidebar}
+            aria-label="Expand navigation drawer (Ctrl+B)"
+            title="Expand navigation drawer (Ctrl+B)"
+          >
+            <Menu size={22} strokeWidth={2} />
+          </button>
+        )}
       </div>
 
       <div className="drawer-workspace">
@@ -437,18 +450,22 @@ export default function App() {
     <main className="main-area">
       <header className="topbar">
         <div className="topbar-left">
-          <button
-            className="icon-button hamburger-button topbar-hamburger"
-            onClick={toggleSidebar}
-            aria-label="Toggle navigation drawer"
-            title="Toggle drawer (Ctrl+B)"
-          >
-            <Menu size={20}/>
-          </button>
-          <NavLink to="/" className="topbar-brand" aria-label="Zynckle home">
-            <span className="brand-mark">z</span>
-            <span className="brand-text">zynckle</span>
-          </NavLink>
+          {!sidebarExpanded && (
+            <>
+              <button
+                className="icon-button hamburger-button topbar-hamburger"
+                onClick={toggleSidebar}
+                aria-label="Toggle navigation drawer"
+                title="Toggle drawer (Ctrl+B)"
+              >
+                <Menu size={20}/>
+              </button>
+              <NavLink to="/" className="topbar-brand" aria-label="Zynckle home">
+                <span className="brand-mark">z</span>
+                <span className="brand-text">zynckle</span>
+              </NavLink>
+            </>
+          )}
           <div className="crumb">
             <span>{workspace}</span>
             <span className="crumb-slash">/</span>
