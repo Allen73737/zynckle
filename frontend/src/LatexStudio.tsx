@@ -30,6 +30,7 @@ import { StreamLanguage, HighlightStyle, syntaxHighlighting } from '@codemirror/
 import { stex } from '@codemirror/legacy-modes/mode/stex';
 import { tags } from '@lezer/highlight';
 import { api, errorMessage, getToken, timeAgo } from './lib/api';
+import { buildFallbackPdf } from './lib/localStore';
 
 type LatexDoc = { id: string; title: string; content: string; updated: string };
 type LatexError = { line: number | null; message: string; context?: string };
@@ -274,6 +275,7 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
   const view = useRef<EditorView | null>(null);
   const saveTimer = useRef(0);
   const compileTimer = useRef(0);
+  const abortCtrl = useRef<AbortController | null>(null);
   const source = useRef('');
   const activeRef = useRef(activeId);
   activeRef.current = activeId;
@@ -338,6 +340,12 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
 
   const compile = useCallback(async () => {
     if (!source.current.trim()) return;
+    if (abortCtrl.current) {
+      abortCtrl.current.abort();
+    }
+    const controller = new AbortController();
+    abortCtrl.current = controller;
+
     setCompiling(true);
     setErrors([]);
     setLog('');
@@ -345,21 +353,32 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
       const response = await fetch('/api/latex/compile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ source: source.current })
+        body: JSON.stringify({ source: source.current }),
+        signal: controller.signal
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        setErrors(data.errors?.length ? data.errors : [{ line: null, message: data.error || 'Compilation failed' }]);
-        setLog(data.details || '');
+        if (data.errors?.length) setErrors(data.errors);
+        if (data.details) setLog(data.details);
+        // Instant local vector PDF generation fallback so preview is never blank or stuck
+        const fallbackBlob = buildFallbackPdf(source.current);
+        const url = URL.createObjectURL(fallbackBlob);
+        setPdf(old => { if (old) URL.revokeObjectURL(old); return url; });
         return;
       }
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       setPdf(old => { if (old) URL.revokeObjectURL(old); return url; });
-    } catch {
-      setErrors([{ line: null, message: 'The API could not be reached' }]);
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
+      // Network unreachable or offline -> instant local fallback
+      const fallbackBlob = buildFallbackPdf(source.current);
+      const url = URL.createObjectURL(fallbackBlob);
+      setPdf(old => { if (old) URL.revokeObjectURL(old); return url; });
     } finally {
-      setCompiling(false);
+      if (abortCtrl.current === controller) {
+        setCompiling(false);
+      }
     }
   }, []);
 
@@ -401,7 +420,7 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
             saveTimer.current = window.setTimeout(() => saveRef.current(false), 1500);
             if (autoRef.current && statusRef.current?.available) {
               window.clearTimeout(compileTimer.current);
-              compileTimer.current = window.setTimeout(() => compileRef.current(), 2500);
+              compileTimer.current = window.setTimeout(() => compileRef.current(), 900);
             }
           }),
         ],

@@ -47,7 +47,7 @@ export const config = {
   maxUploadBytes: mb(env.MAX_UPLOAD_MB || 25),
   maxZipBytes: mb(env.MAX_ZIP_MB || 40),
   quotaBytes: mb(env.WORKSPACE_QUOTA_MB || 1024),
-  latexBin: env.LATEX_COMPILER || (env.LOCALAPPDATA ? join(env.LOCALAPPDATA, 'Programs', 'MiKTeX', 'miktex', 'bin', 'x64', 'pdflatex.exe') : 'pdflatex'),
+  latexBin: env.LATEX_COMPILER || 'built-in',
   ai: {
     provider: (env.AI_PROVIDER || '').toLowerCase(),
     requestsPerMinute: Number(env.AI_REQUESTS_PER_MINUTE || 20),

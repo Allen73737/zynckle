@@ -5,6 +5,23 @@ const api = process.env.ZYNCKLE_API || 'http://localhost:8080';
 
 export default defineConfig({
   plugins: [react()],
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      'react-router-dom',
+      'lucide-react',
+      'codemirror',
+      '@codemirror/view',
+      '@codemirror/state',
+      '@codemirror/language',
+      '@codemirror/commands',
+      '@codemirror/legacy-modes/mode/stex',
+      '@lezer/highlight',
+      'dompurify',
+      'marked',
+    ],
+  },
   server: {
     port: 5173,
     proxy: {
