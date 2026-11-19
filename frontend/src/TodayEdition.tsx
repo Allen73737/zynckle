@@ -1,6 +1,20 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { ArrowRight, Calendar, Check, CheckCircle2, Clock, Feather, LoaderCircle, ShieldAlert, Sparkles, Square, Users, Zap } from 'lucide-react';
+import {
+  ArrowRight,
+  Calendar,
+  Check,
+  CheckCircle2,
+  Clock,
+  Feather,
+  LoaderCircle,
+  Plus,
+  ShieldAlert,
+  Sparkles,
+  Square,
+  Users,
+  Zap
+} from 'lucide-react';
 import { api, errorMessage, streamAI, timeAgo } from './lib/api';
 import { statusOf, type ActivityItem, type Project, type Task } from './ProjectViews';
 
@@ -9,6 +23,8 @@ const rank: Record<string, number> = { Urgent: 0, High: 1, Normal: 2, Low: 3 };
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const dayOffset = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return d; };
 const daysBetween = (a: string, b: string) => Math.round((Date.parse(`${b}T12:00:00`) - Date.parse(`${a}T12:00:00`)) / 86_400_000);
+
+type TaskFilter = 'all' | 'dueToday' | 'overdue' | 'urgent' | 'done';
 
 export default function TodayEdition({
   tasks,
@@ -19,7 +35,9 @@ export default function TodayEdition({
   onToggle,
   onOpenTask,
   onCapture,
-  canEdit
+  canEdit,
+  onTaskCreated,
+  onSeedWorkspace
 }: {
   tasks: Task[];
   projects: Project[];
@@ -30,8 +48,11 @@ export default function TodayEdition({
   onOpenTask: (t: Task) => void;
   onCapture: () => void;
   canEdit: boolean;
+  onTaskCreated?: (t: Task) => void;
+  onSeedWorkspace?: () => void;
 }) {
   const [scope, setScope] = useState<'mine' | 'all'>(() => (localStorage.getItem('zynckle-edition-scope') as 'mine' | 'all') || 'mine');
+  const [filter, setFilter] = useState<TaskFilter>('all');
   const [activity, setActivity] = useState<ActivityItem[] | null>(null);
   const [note, setNote] = useState('');
   const [writing, setWriting] = useState(false);
@@ -39,30 +60,152 @@ export default function TodayEdition({
   const [aiAvailable, setAiAvailable] = useState(false);
   const abort = useRef<AbortController | null>(null);
 
+  // Inline Task Creator State
+  const [isCreating, setIsCreating] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
+  const [newProject, setNewProject] = useState(() => projects[0]?.name || 'General');
+  const [newPriority, setNewPriority] = useState<'Urgent' | 'High' | 'Normal' | 'Low'>('Normal');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
   useEffect(() => { localStorage.setItem('zynckle-edition-scope', scope); }, [scope]);
   useEffect(() => {
     api<ActivityItem[]>('/api/activity?limit=40').then(setActivity).catch(() => setActivity([]));
     api<{ available: boolean }>('/api/ai/status').then(s => setAiAvailable(s.available)).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    if (projects.length > 0 && !projects.some(p => p.name === newProject)) {
+      setNewProject(projects[0].name);
+    }
+  }, [projects, newProject]);
+
+  // Global Keyboard shortcut 'n' to trigger inline task creator
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'n' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+        if (tag !== 'input' && tag !== 'textarea' && tag !== 'select' && !(e.target as HTMLElement)?.isContentEditable) {
+          e.preventDefault();
+          setIsCreating(true);
+        }
+      } else if (e.key === 'Escape' && isCreating) {
+        setIsCreating(false);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isCreating]);
+
+  useEffect(() => {
+    if (isCreating) {
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [isCreating]);
+
   const today = iso(new Date());
   const now = new Date();
-  const open = useMemo(() => tasks.filter(t => statusOf(t) !== 'Done' && (scope === 'all' || t.assigneeId === accountId)), [tasks, scope, accountId]);
-  const dated = open.filter(t => /^\d{4}-\d{2}-\d{2}$/.test(t.date));
-  const overdue = dated.filter(t => t.date < today).sort((a, b) => a.date.localeCompare(b.date));
-  const dueToday = dated.filter(t => t.date === today).sort((a, b) => (rank[a.priority] ?? 9) - (rank[b.priority] ?? 9));
-  const inReview = open.filter(t => statusOf(t) === 'In review');
+
+  // Tasks in scope
+  const scopedTasks = useMemo(() => {
+    return tasks.filter(t => scope === 'all' || t.assigneeId === accountId);
+  }, [tasks, scope, accountId]);
+
+  const openTasks = useMemo(() => scopedTasks.filter(t => statusOf(t) !== 'Done'), [scopedTasks]);
+  const datedTasks = useMemo(() => scopedTasks.filter(t => /^\d{4}-\d{2}-\d{2}$/.test(t.date)), [scopedTasks]);
+  
+  const overdue = useMemo(() => {
+    return openTasks.filter(t => /^\d{4}-\d{2}-\d{2}$/.test(t.date) && t.date < today).sort((a, b) => a.date.localeCompare(b.date));
+  }, [openTasks, today]);
+
+  const dueToday = useMemo(() => {
+    return openTasks.filter(t => t.date === today).sort((a, b) => (rank[a.priority] ?? 9) - (rank[b.priority] ?? 9));
+  }, [openTasks, today]);
+
+  const urgentTasks = useMemo(() => {
+    return openTasks.filter(t => t.priority === 'Urgent' || t.priority === 'High').sort((a, b) => (rank[a.priority] ?? 9) - (rank[b.priority] ?? 9));
+  }, [openTasks]);
+
+  const inReview = useMemo(() => openTasks.filter(t => statusOf(t) === 'In review'), [openTasks]);
+
+  const completedToday = useMemo(() => {
+    return scopedTasks.filter(t => {
+      if (statusOf(t) !== 'Done') return false;
+      const updatedStr = String((t as Task & { updatedAt?: string }).updatedAt || '').slice(0, 10);
+      return t.date === today || updatedStr === today;
+    });
+  }, [scopedTasks, today]);
+
   const weekAgo = iso(dayOffset(-7));
-  const doneThisWeek = tasks.filter(t => statusOf(t) === 'Done' && (scope === 'all' || t.assigneeId === accountId) && String((t as Task & { updatedAt?: string }).updatedAt || '').slice(0, 10) >= weekAgo).length;
+  const doneThisWeek = useMemo(() => {
+    return scopedTasks.filter(t => {
+      if (statusOf(t) !== 'Done') return false;
+      const updatedStr = String((t as Task & { updatedAt?: string }).updatedAt || '').slice(0, 10);
+      return updatedStr >= weekAgo || t.date >= weekAgo;
+    }).length;
+  }, [scopedTasks, weekAgo]);
 
-  const lead = [...overdue, ...dueToday, ...open.filter(t => t.priority === 'Urgent' || t.priority === 'High')].sort((a, b) => (rank[a.priority] ?? 9) - (rank[b.priority] ?? 9))[0] || open[0];
-  const leadKicker = !lead ? '' : /^\d{4}/.test(lead.date) && lead.date < today ? `OVERDUE · ${daysBetween(lead.date, today)} DAY${daysBetween(lead.date, today) === 1 ? '' : 'S'} LATE` : lead.date === today ? 'DUE TODAY' : `${lead.priority.toUpperCase()} PRIORITY`;
+  // Lead Focus Task
+  const lead = [...overdue, ...dueToday, ...urgentTasks].sort((a, b) => (rank[a.priority] ?? 9) - (rank[b.priority] ?? 9))[0] || openTasks[0];
+  const leadKicker = !lead
+    ? ''
+    : /^\d{4}/.test(lead.date) && lead.date < today
+    ? `OVERDUE · ${daysBetween(lead.date, today)} DAY${daysBetween(lead.date, today) === 1 ? '' : 'S'} LATE`
+    : lead.date === today
+    ? 'DUE TODAY'
+    : `${lead.priority.toUpperCase()} PRIORITY`;
 
-  const horizon = Array.from({ length: 7 }, (_, i) => {
-    const d = dayOffset(i + 1);
-    const key = iso(d);
-    return { key, label: new Intl.DateTimeFormat('en', { weekday: 'short' }).format(d), day: d.getDate(), items: dated.filter(t => t.date === key) };
-  });
+  // 7-day Horizon
+  const horizon = useMemo(() => {
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = dayOffset(i + 1);
+      const key = iso(d);
+      return {
+        key,
+        label: new Intl.DateTimeFormat('en', { weekday: 'short' }).format(d),
+        day: d.getDate(),
+        items: datedTasks.filter(t => statusOf(t) !== 'Done' && t.date === key)
+      };
+    });
+  }, [datedTasks]);
+
+  // Today Progress Metrics
+  const todayPool = useMemo(() => {
+    const map = new Map<string | number, Task>();
+    [...dueToday, ...overdue, ...completedToday].forEach(t => map.set(t.id, t));
+    return Array.from(map.values());
+  }, [dueToday, overdue, completedToday]);
+
+  const completedCount = completedToday.length;
+  const totalTodayCount = todayPool.length || dueToday.length + completedCount;
+  const completionPercentage = totalTodayCount > 0 ? Math.round((completedCount / totalTodayCount) * 100) : 100;
+
+  // Filtered Task Display
+  const filteredTasks = useMemo(() => {
+    switch (filter) {
+      case 'dueToday':
+        return dueToday;
+      case 'overdue':
+        return overdue;
+      case 'urgent':
+        return urgentTasks;
+      case 'done':
+        return completedToday;
+      case 'all':
+      default: {
+        // All active tasks for today: overdue first, then today's tasks, then any high priority
+        const combined = new Map<string | number, Task>();
+        overdue.forEach(t => combined.set(t.id, t));
+        dueToday.forEach(t => combined.set(t.id, t));
+        urgentTasks.forEach(t => combined.set(t.id, t));
+        completedToday.forEach(t => combined.set(t.id, t));
+        if (combined.size === 0) {
+          openTasks.slice(0, 8).forEach(t => combined.set(t.id, t));
+        }
+        return Array.from(combined.values());
+      }
+    }
+  }, [filter, dueToday, overdue, urgentTasks, completedToday, openTasks]);
 
   const overnight = (activity || []).filter(a => Date.now() - Date.parse(a.createdAt) < 18 * 3600_000 && a.actor.id !== accountId);
   const greeting = now.getHours() < 12 ? 'Good morning' : now.getHours() < 18 ? 'Good afternoon' : 'Good evening';
@@ -86,6 +229,37 @@ export default function TodayEdition({
       if ((e as Error).name !== 'AbortError') setNoteError(errorMessage(e));
     } finally {
       setWriting(false);
+    }
+  };
+
+  const handleCreateTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = newTitle.trim();
+    if (!trimmed) return;
+    setIsSubmitting(true);
+    try {
+      let targetProj = projects.find(p => p.name === newProject) || projects[0];
+      if (!targetProj) {
+        targetProj = await api<Project>('/api/projects', {
+          body: { name: newProject || 'General', description: 'Workspace project' }
+        });
+      }
+      const saved = await api<Task>(`/api/projects/${targetProj.id}/tasks`, {
+        body: {
+          title: trimmed,
+          priority: newPriority,
+          date: today,
+          status: 'To do',
+          assigneeId: scope === 'mine' ? accountId : undefined
+        }
+      });
+      onTaskCreated?.(saved);
+      setNewTitle('');
+      setIsCreating(false);
+    } catch (err) {
+      console.error('Failed to create task', err);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -139,7 +313,7 @@ export default function TodayEdition({
 
       {/* Uniform Metrics Grid */}
       <section className="dashboard-metrics metrics-grid">
-        <div className="metric-card">
+        <div className="metric-card" onClick={() => setFilter('dueToday')} style={{ cursor: 'pointer' }}>
           <span className="metric-eyebrow">DUE TODAY</span>
           <div className="metric-value-row">
             <span className="metric-num">{dueToday.length}</span>
@@ -148,7 +322,11 @@ export default function TodayEdition({
           <span className="metric-sub">Scheduled for today</span>
         </div>
 
-        <div className={`metric-card ${overdue.length > 0 ? 'metric-card-attention' : ''}`}>
+        <div
+          className={`metric-card ${overdue.length > 0 ? 'metric-card-attention' : ''}`}
+          onClick={() => setFilter('overdue')}
+          style={{ cursor: 'pointer' }}
+        >
           <span className="metric-eyebrow">OVERDUE</span>
           <div className="metric-value-row">
             <span className="metric-num">{overdue.length}</span>
@@ -166,7 +344,7 @@ export default function TodayEdition({
           <span className="metric-sub">Awaiting verification</span>
         </div>
 
-        <div className="metric-card">
+        <div className="metric-card" onClick={() => setFilter('done')} style={{ cursor: 'pointer' }}>
           <span className="metric-eyebrow">SHIPPED THIS WEEK</span>
           <div className="metric-value-row">
             <span className="metric-num">{doneThisWeek}</span>
@@ -180,6 +358,25 @@ export default function TodayEdition({
       <div className="content-grid">
         {/* Left Primary Column */}
         <div className="main-col">
+          {/* Daily Completion Progress Bar */}
+          <section className="dashboard-panel today-progress-panel">
+            <div className="today-progress-stats">
+              <div className="today-progress-headline">
+                <CheckCircle2 size={18} className="today-progress-icon" />
+                <span className="today-progress-label">Today's Execution Velocity</span>
+              </div>
+              <span className="today-progress-ratio">
+                <strong>{completedCount}</strong> of <strong>{totalTodayCount}</strong> tasks complete ({completionPercentage}%)
+              </span>
+            </div>
+            <div className="today-progress-track">
+              <div
+                className="today-progress-fill"
+                style={{ width: `${Math.max(4, completionPercentage)}%` }}
+              />
+            </div>
+          </section>
+
           {/* Top Priority Hero Card */}
           {lead ? (
             <div className="hero-project-card">
@@ -217,67 +414,204 @@ export default function TodayEdition({
                   ? 'Nothing is assigned to you right now. Switch to the whole workspace or capture new tasks.'
                   : 'No open tasks found in this workspace.'}
               </p>
-              {canEdit && (
-                <button className="button-primary" onClick={onCapture}>
-                  <Zap size={14} /> Quick capture a task <kbd className="zy-kbd">C</kbd>
-                </button>
-              )}
+              <div className="hero-project-actions">
+                {canEdit && (
+                  <button className="button-primary" onClick={onCapture}>
+                    <Zap size={14} /> Quick capture a task <kbd className="zy-kbd">C</kbd>
+                  </button>
+                )}
+                {onSeedWorkspace && tasks.length === 0 && (
+                  <button className="button-secondary" onClick={onSeedWorkspace}>
+                    <Sparkles size={14} /> Seed starter tasks
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
-          {/* Today's Tasks List Panel */}
+          {/* Notion-Style Today's Tasks Interactive Panel */}
           <section className="dashboard-panel">
             <div className="panel-header">
               <div className="panel-title-wrap">
                 <h3 className="panel-title">Tasks for Today</h3>
-                <span className="badge-count">{dueToday.length}</span>
+                <span className="badge-count">{filteredTasks.length}</span>
               </div>
               <NavLink to="/tasks" className="panel-action-link">
                 View all tasks <ArrowRight size={13} />
               </NavLink>
             </div>
 
-            {dueToday.length > 0 ? (
-              <div className="task-action-list">
-                {dueToday.map(t => (
-                  <div key={t.id} className="task-action-row">
-                    <button
-                      className="task-checkbox"
-                      onClick={() => onToggle(t.id)}
-                      aria-label={`Mark ${t.title} complete`}
-                      title="Mark done"
-                    >
-                      <Check size={13} />
-                    </button>
-                    <div className="task-action-content" onClick={() => onOpenTask(t)} style={{ cursor: 'pointer' }}>
-                      <span className="task-action-title">{t.title}</span>
-                      <div className="task-action-meta">
-                        <span className="task-meta-project">{t.project}</span>
-                        {t.assignee && scope === 'all' && (
-                          <span className="task-meta-assignee">· {t.assignee.name}</span>
-                        )}
-                        <span className={`task-meta-priority priority-${t.priority.toLowerCase()}`}>
-                          {t.priority}
-                        </span>
+            {/* Filter Pills */}
+            <div className="today-filter-pills">
+              <button
+                className={`filter-pill ${filter === 'all' ? 'active' : ''}`}
+                onClick={() => setFilter('all')}
+              >
+                All <span>{dueToday.length + overdue.length}</span>
+              </button>
+              <button
+                className={`filter-pill ${filter === 'dueToday' ? 'active' : ''}`}
+                onClick={() => setFilter('dueToday')}
+              >
+                Due Today <span>{dueToday.length}</span>
+              </button>
+              {overdue.length > 0 && (
+                <button
+                  className={`filter-pill filter-pill-attention ${filter === 'overdue' ? 'active' : ''}`}
+                  onClick={() => setFilter('overdue')}
+                >
+                  Overdue <span>{overdue.length}</span>
+                </button>
+              )}
+              <button
+                className={`filter-pill ${filter === 'urgent' ? 'active' : ''}`}
+                onClick={() => setFilter('urgent')}
+              >
+                High Priority <span>{urgentTasks.length}</span>
+              </button>
+              <button
+                className={`filter-pill ${filter === 'done' ? 'active' : ''}`}
+                onClick={() => setFilter('done')}
+              >
+                Completed <span>{completedToday.length}</span>
+              </button>
+            </div>
+
+            {/* Notion-Style Inline Task Creator */}
+            {canEdit && (
+              <div className="today-inline-creator">
+                {!isCreating ? (
+                  <button
+                    className="today-add-task-btn"
+                    onClick={() => setIsCreating(true)}
+                    type="button"
+                  >
+                    <Plus size={16} />
+                    <span>Add a task for today…</span>
+                    <kbd className="zy-kbd">N</kbd>
+                  </button>
+                ) : (
+                  <form className="today-inline-form" onSubmit={handleCreateTask}>
+                    <input
+                      ref={inputRef}
+                      type="text"
+                      className="today-inline-input"
+                      placeholder="What needs to be accomplished today? (Press Enter to save)"
+                      value={newTitle}
+                      onChange={e => setNewTitle(e.target.value)}
+                    />
+                    <div className="today-inline-controls">
+                      <div className="today-inline-selectors">
+                        <select
+                          className="today-inline-select"
+                          value={newProject}
+                          onChange={e => setNewProject(e.target.value)}
+                        >
+                          {projects.map(p => (
+                            <option key={p.id} value={p.name}>{p.name}</option>
+                          ))}
+                          {projects.length === 0 && <option value="General">General</option>}
+                        </select>
+
+                        <div className="today-priority-pills">
+                          {(['Urgent', 'High', 'Normal', 'Low'] as const).map(p => (
+                            <button
+                              key={p}
+                              type="button"
+                              className={`today-priority-pill priority-${p.toLowerCase()} ${newPriority === p ? 'active' : ''}`}
+                              onClick={() => setNewPriority(p)}
+                            >
+                              {p}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="today-inline-actions">
+                        <button
+                          type="button"
+                          className="button-secondary btn-sm"
+                          onClick={() => { setIsCreating(false); setNewTitle(''); }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="button-primary btn-sm"
+                          disabled={!newTitle.trim() || isSubmitting}
+                        >
+                          {isSubmitting ? <LoaderCircle size={14} className="spin" /> : <Plus size={14} />}
+                          <span>Add Task</span>
+                        </button>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  </form>
+                )}
+              </div>
+            )}
+
+            {/* Task List */}
+            {filteredTasks.length > 0 ? (
+              <div className="task-action-list">
+                {filteredTasks.map(t => {
+                  const isDone = statusOf(t) === 'Done';
+                  const isLate = /^\d{4}/.test(t.date) && t.date < today && !isDone;
+                  return (
+                    <div
+                      key={t.id}
+                      className={`task-action-row ${isDone ? 'task-done' : ''} ${isLate ? 'task-late' : ''}`}
+                    >
+                      <button
+                        className={`task-checkbox ${isDone ? 'checked' : ''}`}
+                        onClick={() => onToggle(t.id)}
+                        aria-label={isDone ? `Mark ${t.title} incomplete` : `Mark ${t.title} complete`}
+                        title={isDone ? 'Mark incomplete' : 'Mark done'}
+                      >
+                        {isDone && <Check size={13} className="check-icon" />}
+                      </button>
+                      <div className="task-action-content" onClick={() => onOpenTask(t)} style={{ cursor: 'pointer' }}>
+                        <span className="task-action-title">{t.title}</span>
+                        <div className="task-action-meta">
+                          <span className="task-meta-project">{t.project}</span>
+                          {isLate ? (
+                            <span className="task-meta-overdue">
+                              {daysBetween(t.date, today)}d overdue
+                            </span>
+                          ) : t.date === today ? (
+                            <span className="task-meta-due-today">Due today</span>
+                          ) : null}
+                          {t.assignee && scope === 'all' && (
+                            <span className="task-meta-assignee">· {t.assignee.name}</span>
+                          )}
+                          <span className={`task-meta-priority priority-${t.priority.toLowerCase()}`}>
+                            {t.priority}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="panel-empty-state">
-                <p>No tasks specifically scheduled for today.</p>
+                <p>
+                  {filter === 'done'
+                    ? 'No tasks completed today yet. Check off items as you finish!'
+                    : filter === 'overdue'
+                    ? 'Outstanding! Zero overdue tasks.'
+                    : 'No tasks matching this filter.'}
+                </p>
                 {canEdit && (
-                  <button className="text-button" onClick={onCapture}>
-                    <Zap size={13} /> Quick capture for today
+                  <button className="text-button" onClick={() => setIsCreating(true)}>
+                    <Plus size={14} /> Add a task for today
                   </button>
                 )}
               </div>
             )}
           </section>
 
-          {/* Running Late Section (if any overdue) */}
-          {overdue.length > 0 && (
+          {/* Running Late Section (if any overdue and not currently on overdue filter) */}
+          {overdue.length > 0 && filter !== 'overdue' && (
             <section className="dashboard-panel panel-overdue">
               <div className="panel-header">
                 <div className="panel-title-wrap">
@@ -287,14 +621,14 @@ export default function TodayEdition({
               </div>
               <div className="task-action-list">
                 {overdue.slice(0, 6).map(t => (
-                  <div key={t.id} className="task-action-row">
+                  <div key={t.id} className="task-action-row task-late">
                     <button
                       className="task-checkbox"
                       onClick={() => onToggle(t.id)}
                       aria-label={`Mark ${t.title} complete`}
                       title="Mark done"
                     >
-                      <Check size={13} />
+                      <Check size={13} className="check-icon" />
                     </button>
                     <div className="task-action-content" onClick={() => onOpenTask(t)} style={{ cursor: 'pointer' }}>
                       <span className="task-action-title">{t.title}</span>
