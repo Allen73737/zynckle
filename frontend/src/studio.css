@@ -2341,15 +2341,13 @@
 .zy-cm {
   flex: 1;
   min-height: 480px;
-  max-height: 74vh;
   overflow: hidden;
   display: flex;
 }
 
 .zy-cm .cm-editor {
   flex: 1;
-  height: auto;
-  max-height: 74vh;
+  height: 100%;
   font-size: 13.5px;
 }
 
@@ -2362,6 +2360,9 @@
   border-top: 1px solid var(--line);
   color: var(--muted);
   font: 11.5px 'DM Mono', monospace;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .zy-latex .pdf-pane iframe {
