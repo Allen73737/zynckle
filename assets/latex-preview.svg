@@ -140,7 +140,7 @@
         <tspan fill="#38bdf8">\begin</tspan><tspan fill="#a1a1aa">{</tspan><tspan fill="#f59e0b">equation</tspan><tspan fill="#a1a1aa">}</tspan>
       </text>
       <text y="230" font-size="12" class="code-font">
-        <tspan fill="#ffffff">&nbsp;&nbsp;\mathcal{H} = \int d^3x \left( \frac{1}{2}\pi^2 + \frac{1}{2}(\nabla\phi)^2 \right)</tspan>
+        <tspan fill="#ffffff">&#160;&#160;\mathcal{H} = \int d^3x \left( \frac{1}{2}\pi^2 + \frac{1}{2}(\nabla\phi)^2 \right)</tspan>
       </text>
       <text y="252" font-size="12" class="code-font">
         <tspan fill="#38bdf8">\end</tspan><tspan fill="#a1a1aa">{</tspan><tspan fill="#f59e0b">equation</tspan><tspan fill="#a1a1aa">}</tspan>
@@ -181,9 +181,9 @@
         Invariant Manifolds in Quantum Field Theory
       </text>
 
-      <!-- Author & Date -->
+      <!-- Author and Date -->
       <text x="210" y="44" fill="#475569" font-size="11" text-anchor="middle" class="serif-font">
-        Zynckle Advanced Research Lab &nbsp;·&nbsp; November 2026
+        Zynckle Advanced Research Lab &#160;·&#160; November 2026
       </text>
 
       <!-- Horizontal Divider -->
@@ -206,7 +206,7 @@
       <g transform="translate(30, 134)">
         <rect width="360" height="34" rx="4" fill="#f8fafc" stroke="#e2e8f0" stroke-width="0.8" />
         <text x="180" y="22" fill="#0f172a" font-size="12" font-style="italic" text-anchor="middle" class="serif-font">
-          H = ∫ d³x ( ½ π² + ½ (∇φ)² + V(φ) ) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; (1)
+          H = ∫ d³x ( ½ π² + ½ (∇φ)² + V(φ) ) &#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; (1)
         </text>
       </g>
 
@@ -222,7 +222,7 @@
       <!-- Typeset Equation 2 -->
       <g transform="translate(60, 230)">
         <text x="150" y="20" fill="#0f172a" font-size="12.5" font-weight="600" font-style="italic" text-anchor="middle" class="serif-font">
-          E² = p²c² + m₀²c⁴ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; (2)
+          E² = p²c² + m₀²c⁴ &#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; (2)
         </text>
       </g>
     </g>

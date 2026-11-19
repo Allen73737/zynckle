@@ -1,6 +1,8 @@
 <div align="center">
 
-<img src="./assets/hero-banner.svg" alt="Zynckle Hero Banner" width="100%" />
+<p align="center">
+  <img src="assets/hero-banner.svg" alt="Zynckle Hero Banner" width="100%" />
+</p>
 
 <br />
 
@@ -54,7 +56,7 @@ backend/    Node.js Zero-Dependency Core · WebSockets (ws) · Yjs CRDT Sync Ser
 Zynckle is engineered for zero-latency execution. Instead of relying on bloated monolithic frameworks, its edge gateway utilizes lightweight streaming protocols and an integrated vector compilation pipeline.
 
 <div align="center">
-  <img src="./assets/architecture.svg" alt="Zynckle Architecture Topology" width="100%" />
+  <img src="assets/architecture.svg" alt="Zynckle Architecture Topology" width="100%" />
 </div>
 
 ### System Layers
@@ -78,7 +80,7 @@ Zynckle introduces the **Fast TeX Pure-JS Vector Engine**:
 - **Full-Window Expandable Workspace**: Toggle full-window focus mode (`Ctrl + Shift + F`), collapse sidebars, or expand the PDF preview canvas with dynamic zoom scaling (50% to 200%).
 
 <div align="center">
-  <img src="./assets/latex-preview.svg" alt="Zynckle LaTeX Studio" width="100%" />
+  <img src="assets/latex-preview.svg" alt="Zynckle LaTeX Studio" width="100%" />
 </div>
 
 ```tex
@@ -102,7 +104,7 @@ Zynckle introduces the **Fast TeX Pure-JS Vector Engine**:
 Press <kbd>C</kbd> from anywhere in the workspace to launch the **Quick Capture HUD**. Zynckle's real-time parser decodes dates, priorities, assignees, projects, and workflow stages into structured tokens as you type:
 
 <div align="center">
-  <img src="./assets/quick-capture.svg" alt="Zynckle Natural Language Quick Capture" width="100%" />
+  <img src="assets/quick-capture.svg" alt="Zynckle Natural Language Quick Capture" width="100%" />
 </div>
 
 ### Token Syntax Reference

@@ -82,11 +82,11 @@
   <path d="M 690 200 C 740 200, 750 170, 790 170" stroke="#10b981" stroke-width="1.5" stroke-opacity="0.6" class="flow-path" />
   <!-- Gateway -> AI Intelligence -->
   <path d="M 690 220 C 740 220, 750 245, 790 245" stroke="#10b981" stroke-width="1.5" stroke-opacity="0.6" class="flow-path" />
-  <!-- Gateway -> Sandboxed Storage & Sites -->
+  <!-- Gateway -> Sandboxed Storage and Sites -->
   <path d="M 690 230 C 730 230, 740 320, 790 320" stroke="#10b981" stroke-width="1.5" stroke-opacity="0.6" class="flow-path" />
 
   <!-- COLUMN 1: CLIENT NODES -->
-  <!-- Client 1: Tiptap & Yjs -->
+  <!-- Client 1: Tiptap and Yjs -->
   <g transform="translate(40, 65)">
     <rect width="260" height="60" rx="8" fill="url(#node-bg)" stroke="#3f3f46" stroke-width="1.2" />
     <circle cx="20" cy="30" r="4" fill="#38bdf8" class="signal-dot" />
@@ -102,7 +102,7 @@
     <text x="34" y="44" fill="#a1a1aa" font-size="10" class="mono-label">TeX Highlighting · Vector PDF Sync</text>
   </g>
 
-  <!-- Client 3: Quick Capture & Board -->
+  <!-- Client 3: Quick Capture and Board -->
   <g transform="translate(40, 215)">
     <rect width="260" height="60" rx="8" fill="url(#node-bg)" stroke="#3f3f46" stroke-width="1.2" />
     <circle cx="20" cy="30" r="4" fill="#10b981" class="signal-dot" />
@@ -110,7 +110,7 @@
     <text x="34" y="44" fill="#a1a1aa" font-size="10" class="mono-label">NLP Parser · Optimistic Moves</text>
   </g>
 
-  <!-- Client 4: Code & Sandboxed Previews -->
+  <!-- Client 4: Code and Sandboxed Previews -->
   <g transform="translate(40, 290)">
     <rect width="260" height="60" rx="8" fill="url(#node-bg)" stroke="#3f3f46" stroke-width="1.2" />
     <circle cx="20" cy="30" r="4" fill="#a855f7" class="signal-dot" />
@@ -160,7 +160,7 @@
     <text x="34" y="44" fill="#10b981" font-size="10" font-weight="600" class="mono-label">5ms Pure-JS PDF 1.4 Generation</text>
   </g>
 
-  <!-- Compute 2: Yjs Collab & Store -->
+  <!-- Compute 2: Yjs Collab and Store -->
   <g transform="translate(790, 140)">
     <rect width="270" height="60" rx="8" fill="url(#node-bg)" stroke="#38bdf8" stroke-width="1.2" />
     <circle cx="20" cy="30" r="4" fill="#38bdf8" class="signal-dot" />

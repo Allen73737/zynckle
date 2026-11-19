@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { Newspaper, Keyboard, Activity, ArrowRight, Bell, BookOpen, Check, ChevronDown, Code2, Command, FileCode2, FolderKanban, HardDrive, LayoutDashboard, LogOut, Menu, Moon, MoreHorizontal, Plus, Search, Settings, Sparkles, Square, Sun, Users, X, Save } from 'lucide-react';
+import { Newspaper, Keyboard, Activity, ArrowRight, Bell, BookOpen, Check, ChevronDown, Code2, Command, FileCode2, FolderKanban, HardDrive, Info, LayoutDashboard, LogOut, Menu, Moon, MoreHorizontal, Plus, Search, Settings, Sparkles, Square, Sun, Users, X, Save } from 'lucide-react';
 import Dashboard from './Dashboard';
 import AuthGate from './AuthScreens';
 import NotificationsPanel from './NotificationsPanel';
@@ -23,6 +23,7 @@ const CodeStudio = lazy(() => import('./CodeStudio'));
 const LatexStudio = lazy(() => import('./LatexStudio'));
 const TeamStudio = lazy(() => import('./TeamStudio'));
 const SettingsStudio = lazy(() => import('./SettingsStudio'));
+const AboutStudio = lazy(() => import('./AboutStudio'));
 const Markdown = lazy(() => import('./Markdown'));
 const TodayEdition = lazy(() => import('./TodayEdition'));
 
@@ -32,8 +33,9 @@ const nav = [
   { label: 'Overview', icon: LayoutDashboard, to: '/' }, { label: 'Today', icon: Newspaper, to: '/today' }, { label: 'Projects', icon: FolderKanban, to: '/projects' },
   { label: 'My tasks', icon: Check, to: '/tasks' }, { label: 'Documents', icon: BookOpen, to: '/documents' },
   { label: 'Zynckle AI', icon: Sparkles, to: '/ai' }, { label: 'LaTeX studio', icon: FileCode2, to: '/latex' }, { label: 'Code', icon: Code2, to: '/code' }, { label: 'Drive', icon: HardDrive, to: '/drive' }, { label: 'Website previews', icon: Activity, to: '/previews' }, { label: 'Team', icon: Users, to: '/team' },
+  { label: 'About', icon: Info, to: '/about' },
 ];
-const crumbFor = (path: string) => ({ '': 'Overview', today: 'The Daily Edition', projects: 'Projects', project: 'Projects', tasks: 'My tasks', task: 'My tasks', documents: 'Documents', doc: 'Documents', docs: 'Documents', ai: 'Zynckle AI', architecture: 'AI Architecture', workshop: 'AI Workshop', latex: 'LaTeX studio', 'latex-studio': 'LaTeX studio', code: 'Code', drive: 'Drive', files: 'Drive', previews: 'Website previews', preview: 'Website previews', team: 'Team', settings: 'Settings' } as Record<string, string>)[path.split('/')[1] || ''] || 'Workspace';
+const crumbFor = (path: string) => ({ '': 'Overview', today: 'The Daily Edition', projects: 'Projects', project: 'Projects', tasks: 'My tasks', task: 'My tasks', documents: 'Documents', doc: 'Documents', docs: 'Documents', ai: 'Zynckle AI', architecture: 'AI Architecture', workshop: 'AI Workshop', latex: 'LaTeX studio', 'latex-studio': 'LaTeX studio', code: 'Code', drive: 'Drive', files: 'Drive', previews: 'Website previews', preview: 'Website previews', team: 'Team', settings: 'Settings', about: 'About Zynckle' } as Record<string, string>)[path.split('/')[1] || ''] || 'Workspace';
 const normaliseTask = (t: Task): Task => ({ ...t, date: t.date || t.due || 'No date', done: t.done || t.status === 'Done', priority: t.priority || 'Normal' });
 
 function PageLoader() { return <div className="zy-page-loader" aria-label="Loading"><i/><i/><i/></div>; }
@@ -147,7 +149,7 @@ export default function App() {
   useEffect(() => {
     // Global keyboard layer. Single keys only fire when you are not typing.
     let chord = 0;
-    const routes: Record<string, string> = { d: '/', y: '/today', p: '/projects', t: '/tasks', o: '/documents', a: '/ai', l: '/latex', c: '/code', f: '/drive', w: '/previews', m: '/team', s: '/settings' };
+    const routes: Record<string, string> = { d: '/', y: '/today', p: '/projects', t: '/tasks', o: '/documents', a: '/ai', l: '/latex', c: '/code', f: '/drive', w: '/previews', m: '/team', s: '/settings', i: '/about' };
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setPaletteOpen(o => !o); return; }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j') { e.preventDefault(); setAiOpen(o => !o); return; }
@@ -533,10 +535,11 @@ export default function App() {
         <Route path="/code/:id" element={<CodeStudio notify={notify} canEdit={canEdit} projects={projects}/>}/>
         <Route path="/team" element={<TeamStudio token={token} notify={notify} presence={presence} onWorkspaceChanged={() => window.location.assign('/team')}/>}/>
         <Route path="/settings" element={<SettingsStudio token={token} account={account} workspace={workspace} workspaceId={workspaceId} workspaceCount={workspaces.length} theme={themeChoice} onThemeChoice={chooseTheme} onAccount={setAccount} onWorkspace={name => { setWorkspace(name); setWorkspaces(items => items.map(item => item.current ? { ...item, name } : item)); }} onSignOut={signOut} notify={notify}/>}/>
+        <Route path="/about" element={<AboutStudio notify={notify}/>}/>
         <Route path="/verify-email" element={<VerifyEmail onDone={() => { loadWorkspace(); navigate('/settings#profile'); }}/>}/>
         <Route path="*" element={<NotFound/>}/>
       </Routes></Suspense>
-      <footer className="page-footer"><span>© 2026 Zynckle Studio</span><span className="api-status"><i className={apiStatus.startsWith('Connected') ? 'online' : ''}/>{apiStatus}</span><span className="api-status" title="Realtime updates"><i className={liveStatus === 'live' ? 'online' : ''}/>{liveStatus === 'live' ? 'Live sync on' : liveStatus === 'connecting' ? 'Connecting live sync' : 'Live sync offline · retrying'}</span><button className="footer-help" onClick={() => setPaletteOpen(true)}><Command size={13}/> Ctrl K</button><NavLink to="/ai" className="footer-help"><Sparkles size={13}/> AI tools</NavLink></footer></div></main>
+      <footer className="page-footer"><span>© 2026 Zynckle Studio</span><span className="api-status"><i className={apiStatus.startsWith('Connected') ? 'online' : ''}/>{apiStatus}</span><span className="api-status" title="Realtime updates"><i className={liveStatus === 'live' ? 'online' : ''}/>{liveStatus === 'live' ? 'Live sync on' : liveStatus === 'connecting' ? 'Connecting live sync' : 'Live sync offline · retrying'}</span><button className="footer-help" onClick={() => setPaletteOpen(true)}><Command size={13}/> Ctrl K</button><NavLink to="/about" className="footer-help"><Info size={13}/> About &amp; 20 Topics</NavLink><NavLink to="/ai" className="footer-help"><Sparkles size={13}/> AI tools</NavLink></footer></div></main>
     {openTask && <TaskDrawer key={openTask.id} task={tasks.find(t => t.id === openTask.id) || openTask} onClose={() => setOpenTask(null)} onSave={updateTask} onDelete={deleteTask} canEdit={canEdit}/>}
     {editingProject && <EditProjectModal project={editingProject} onClose={() => setEditingProject(null)} onSave={updateProject}/>}
     {notificationsOpen && <NotificationsPanel token={token} onClose={() => setNotificationsOpen(false)} onUnreadChange={setUnreadCount}/>}
