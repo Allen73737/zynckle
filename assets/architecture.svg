@@ -1,0 +1,200 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 440" width="100%" height="440" fill="none">
+  <defs>
+    <linearGradient id="arch-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#050507" />
+      <stop offset="100%" stop-color="#09090d" />
+    </linearGradient>
+
+    <linearGradient id="node-bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#18181b" stop-opacity="0.9" />
+      <stop offset="100%" stop-color="#0e0e11" stop-opacity="0.95" />
+    </linearGradient>
+
+    <linearGradient id="line-glow" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.2" />
+      <stop offset="50%" stop-color="#38bdf8" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#10b981" stop-opacity="0.2" />
+    </linearGradient>
+
+    <filter id="glow-filter" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+
+    <style>
+      @keyframes dash-move {
+        to { stroke-dashoffset: -32; }
+      }
+      @keyframes pulse-signal {
+        0%, 100% { opacity: 0.3; r: 3; }
+        50% { opacity: 1; r: 5; }
+      }
+      @keyframes packet-flow-1 {
+        0% { offset-distance: 0%; opacity: 0; }
+        20% { opacity: 1; }
+        80% { opacity: 1; }
+        100% { offset-distance: 100%; opacity: 0; }
+      }
+      .flow-path {
+        stroke-dasharray: 6 6;
+        animation: dash-move 1.4s linear infinite;
+      }
+      .signal-dot {
+        animation: pulse-signal 2s ease-in-out infinite;
+      }
+      .mono-label {
+        font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      }
+      .sans-label {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      }
+    </style>
+  </defs>
+
+  <!-- Frame Background -->
+  <rect width="1100" height="440" rx="14" fill="url(#arch-bg)" stroke="#27272a" stroke-width="1.5" />
+
+  <!-- Section Headers -->
+  <g transform="translate(40, 32)">
+    <text x="0" y="0" fill="#71717a" font-size="11" font-weight="700" letter-spacing="1.5" class="mono-label">LAYER 01 // CLIENT APPLICATIONS</text>
+  </g>
+  <g transform="translate(420, 32)">
+    <text x="0" y="0" fill="#71717a" font-size="11" font-weight="700" letter-spacing="1.5" class="mono-label">LAYER 02 // REALTIME EDGE GATEWAY</text>
+  </g>
+  <g transform="translate(780, 32)">
+    <text x="0" y="0" fill="#71717a" font-size="11" font-weight="700" letter-spacing="1.5" class="mono-label">LAYER 03 // CORE COMPUTE &amp; COMPILERS</text>
+  </g>
+
+  <!-- Connection Lines (Underneath nodes) -->
+  <!-- Client 1 -> Gateway -->
+  <path d="M 300 95 C 360 95, 370 190, 430 190" stroke="#38bdf8" stroke-width="1.5" stroke-opacity="0.6" class="flow-path" />
+  <!-- Client 2 -> Gateway -->
+  <path d="M 300 170 C 370 170, 380 200, 430 200" stroke="#38bdf8" stroke-width="1.5" stroke-opacity="0.6" class="flow-path" />
+  <!-- Client 3 -> Gateway -->
+  <path d="M 300 245 C 370 245, 380 220, 430 220" stroke="#38bdf8" stroke-width="1.5" stroke-opacity="0.6" class="flow-path" />
+  <!-- Client 4 -> Gateway -->
+  <path d="M 300 320 C 360 320, 370 230, 430 230" stroke="#38bdf8" stroke-width="1.5" stroke-opacity="0.6" class="flow-path" />
+
+  <!-- Gateway -> Core Compute -->
+  <!-- Gateway -> Pure-JS TeX -->
+  <path d="M 690 190 C 730 190, 740 95, 790 95" stroke="#10b981" stroke-width="1.5" stroke-opacity="0.6" class="flow-path" />
+  <!-- Gateway -> Yjs Collab Store -->
+  <path d="M 690 200 C 740 200, 750 170, 790 170" stroke="#10b981" stroke-width="1.5" stroke-opacity="0.6" class="flow-path" />
+  <!-- Gateway -> AI Intelligence -->
+  <path d="M 690 220 C 740 220, 750 245, 790 245" stroke="#10b981" stroke-width="1.5" stroke-opacity="0.6" class="flow-path" />
+  <!-- Gateway -> Sandboxed Storage & Sites -->
+  <path d="M 690 230 C 730 230, 740 320, 790 320" stroke="#10b981" stroke-width="1.5" stroke-opacity="0.6" class="flow-path" />
+
+  <!-- COLUMN 1: CLIENT NODES -->
+  <!-- Client 1: Tiptap & Yjs -->
+  <g transform="translate(40, 65)">
+    <rect width="260" height="60" rx="8" fill="url(#node-bg)" stroke="#3f3f46" stroke-width="1.2" />
+    <circle cx="20" cy="30" r="4" fill="#38bdf8" class="signal-dot" />
+    <text x="34" y="27" fill="#ffffff" font-size="12.5" font-weight="700" class="sans-label">Tiptap Collaborative Editor</text>
+    <text x="34" y="44" fill="#a1a1aa" font-size="10" class="mono-label">Yjs CRDT · Shared Carets · Offline</text>
+  </g>
+
+  <!-- Client 2: LaTeX Studio -->
+  <g transform="translate(40, 140)">
+    <rect width="260" height="60" rx="8" fill="url(#node-bg)" stroke="#3f3f46" stroke-width="1.2" />
+    <circle cx="20" cy="30" r="4" fill="#f59e0b" class="signal-dot" />
+    <text x="34" y="27" fill="#ffffff" font-size="12.5" font-weight="700" class="sans-label">LaTeX Studio (CodeMirror)</text>
+    <text x="34" y="44" fill="#a1a1aa" font-size="10" class="mono-label">TeX Highlighting · Vector PDF Sync</text>
+  </g>
+
+  <!-- Client 3: Quick Capture & Board -->
+  <g transform="translate(40, 215)">
+    <rect width="260" height="60" rx="8" fill="url(#node-bg)" stroke="#3f3f46" stroke-width="1.2" />
+    <circle cx="20" cy="30" r="4" fill="#10b981" class="signal-dot" />
+    <text x="34" y="27" fill="#ffffff" font-size="12.5" font-weight="700" class="sans-label">Quick Capture &amp; Kanban</text>
+    <text x="34" y="44" fill="#a1a1aa" font-size="10" class="mono-label">NLP Parser · Optimistic Moves</text>
+  </g>
+
+  <!-- Client 4: Code & Sandboxed Previews -->
+  <g transform="translate(40, 290)">
+    <rect width="260" height="60" rx="8" fill="url(#node-bg)" stroke="#3f3f46" stroke-width="1.2" />
+    <circle cx="20" cy="30" r="4" fill="#a855f7" class="signal-dot" />
+    <text x="34" y="27" fill="#ffffff" font-size="12.5" font-weight="700" class="sans-label">Code IDE &amp; Preview Studio</text>
+    <text x="34" y="44" fill="#a1a1aa" font-size="10" class="mono-label">GitHub Import · Sandboxed Frame</text>
+  </g>
+
+  <!-- COLUMN 2: REALTIME EDGE GATEWAY -->
+  <g transform="translate(430, 85)">
+    <!-- Main Gateway Box -->
+    <rect width="260" height="245" rx="12" fill="#0c0d10" stroke="#52525b" stroke-width="1.5" />
+    <rect x="0" y="0" width="260" height="34" rx="12" fill="#18181b" />
+    <circle cx="20" cy="17" r="4.5" fill="#10b981" />
+    <circle cx="34" cy="17" r="4.5" fill="#f59e0b" />
+    <circle cx="48" cy="17" r="4.5" fill="#ef4444" />
+    <text x="130" y="21" fill="#e4e4e7" font-size="11" font-weight="700" text-anchor="middle" class="mono-label">ZYNCKLE EDGE RUNTIME</text>
+
+    <!-- Sub-components inside gateway -->
+    <g transform="translate(16, 50)">
+      <rect width="228" height="38" rx="6" fill="#141418" stroke="#27272a" stroke-width="1" />
+      <text x="14" y="23" fill="#ffffff" font-size="11" font-weight="600" class="mono-label">WebSocket Engine (ws)</text>
+      <text x="195" y="23" fill="#10b981" font-size="9" class="mono-label">&lt;1ms</text>
+    </g>
+    <g transform="translate(16, 96)">
+      <rect width="228" height="38" rx="6" fill="#141418" stroke="#27272a" stroke-width="1" />
+      <text x="14" y="23" fill="#ffffff" font-size="11" font-weight="600" class="mono-label">Scrypt Auth + RBAC Guard</text>
+      <text x="180" y="23" fill="#38bdf8" font-size="9" class="mono-label">Zero-Trust</text>
+    </g>
+    <g transform="translate(16, 142)">
+      <rect width="228" height="38" rx="6" fill="#141418" stroke="#27272a" stroke-width="1" />
+      <text x="14" y="23" fill="#ffffff" font-size="11" font-weight="600" class="mono-label">Rate Limiter &amp; Token Bucket</text>
+      <text x="185" y="23" fill="#f59e0b" font-size="9" class="mono-label">120/min</text>
+    </g>
+    <g transform="translate(16, 188)">
+      <rect width="228" height="38" rx="6" fill="#141418" stroke="#27272a" stroke-width="1" />
+      <text x="14" y="23" fill="#ffffff" font-size="11" font-weight="600" class="mono-label">SSRF Shield &amp; Strict CSP</text>
+      <text x="192" y="23" fill="#a855f7" font-size="9" class="mono-label">Opaque</text>
+    </g>
+  </g>
+
+  <!-- COLUMN 3: CORE COMPUTE ENGINES -->
+  <!-- Compute 1: Fast TeX Engine -->
+  <g transform="translate(790, 65)">
+    <rect width="270" height="60" rx="8" fill="url(#node-bg)" stroke="#10b981" stroke-width="1.2" />
+    <circle cx="20" cy="30" r="4" fill="#10b981" class="signal-dot" />
+    <text x="34" y="27" fill="#ffffff" font-size="12.5" font-weight="700" class="sans-label">Fast TeX Vector Engine</text>
+    <text x="34" y="44" fill="#10b981" font-size="10" font-weight="600" class="mono-label">5ms Pure-JS PDF 1.4 Generation</text>
+  </g>
+
+  <!-- Compute 2: Yjs Collab & Store -->
+  <g transform="translate(790, 140)">
+    <rect width="270" height="60" rx="8" fill="url(#node-bg)" stroke="#38bdf8" stroke-width="1.2" />
+    <circle cx="20" cy="30" r="4" fill="#38bdf8" class="signal-dot" />
+    <text x="34" y="27" fill="#ffffff" font-size="12.5" font-weight="700" class="sans-label">Atomic Metadata Store</text>
+    <text x="34" y="44" fill="#a1a1aa" font-size="10" class="mono-label">JSON Journal + Flyway SQL Schema</text>
+  </g>
+
+  <!-- Compute 3: AI Mesh -->
+  <g transform="translate(790, 215)">
+    <rect width="270" height="60" rx="8" fill="url(#node-bg)" stroke="#f59e0b" stroke-width="1.2" />
+    <circle cx="20" cy="30" r="4" fill="#f59e0b" class="signal-dot" />
+    <text x="34" y="27" fill="#ffffff" font-size="12.5" font-weight="700" class="sans-label">Workspace AI Mesh</text>
+    <text x="34" y="44" fill="#a1a1aa" font-size="10" class="mono-label">Groq · Gemini · OpenRouter Streaming</text>
+  </g>
+
+  <!-- Compute 4: Storage Engine -->
+  <g transform="translate(790, 290)">
+    <rect width="270" height="60" rx="8" fill="url(#node-bg)" stroke="#a855f7" stroke-width="1.2" />
+    <circle cx="20" cy="30" r="4" fill="#a855f7" class="signal-dot" />
+    <text x="34" y="27" fill="#ffffff" font-size="12.5" font-weight="700" class="sans-label">Sandboxed Object Store</text>
+    <text x="34" y="44" fill="#a1a1aa" font-size="10" class="mono-label">Local Streaming / Cloudflare R2 SigV4</text>
+  </g>
+
+  <!-- Footer Legend -->
+  <g transform="translate(40, 395)">
+    <circle cx="6" cy="6" r="3" fill="#38bdf8" />
+    <text x="16" y="10" fill="#71717a" font-size="10" class="mono-label">CLIENT WEBSOCKET (ws://)</text>
+
+    <circle cx="240" cy="6" r="3" fill="#10b981" />
+    <text x="250" y="10" fill="#71717a" font-size="10" class="mono-label">PIPELINE SYNC &amp; COMPILE</text>
+
+    <circle cx="480" cy="6" r="3" fill="#a855f7" />
+    <text x="490" y="10" fill="#71717a" font-size="10" class="mono-label">ZERO-TRUST ENCLAVE</text>
+
+    <text x="1020" y="10" fill="#52525b" font-size="10" text-anchor="end" class="mono-label">END-TO-END UNIFIED ARCHITECTURE</text>
+  </g>
+</svg>

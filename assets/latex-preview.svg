@@ -1,0 +1,235 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 420" width="100%" height="420" fill="none">
+  <defs>
+    <linearGradient id="studio-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#050508" />
+      <stop offset="100%" stop-color="#0a0a0f" />
+    </linearGradient>
+
+    <linearGradient id="pdf-paper" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#fafafa" />
+    </linearGradient>
+
+    <linearGradient id="scan-pdf" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" stop-opacity="0" />
+      <stop offset="50%" stop-color="#10b981" stop-opacity="0.4" />
+      <stop offset="100%" stop-color="#10b981" stop-opacity="0" />
+    </linearGradient>
+
+    <style>
+      @keyframes blink-cursor {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0; }
+      }
+      @keyframes laser-sweep {
+        0% { transform: translateY(-20px); opacity: 0; }
+        10% { opacity: 0.8; }
+        90% { opacity: 0.8; }
+        100% { transform: translateY(330px); opacity: 0; }
+      }
+      @keyframes pulse-fast {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(0.9); opacity: 0.6; }
+      }
+      .tex-cursor {
+        animation: blink-cursor 1s steps(2, start) infinite;
+      }
+      .laser-scan {
+        animation: laser-sweep 4s ease-in-out infinite;
+      }
+      .badge-pulse {
+        animation: pulse-fast 2s ease-in-out infinite;
+      }
+      .code-font {
+        font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      }
+      .serif-font {
+        font-family: "Times New Roman", Times, Georgia, serif;
+      }
+      .sans-font {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      }
+    </style>
+  </defs>
+
+  <!-- Frame Background -->
+  <rect width="1100" height="420" rx="14" fill="url(#studio-bg)" stroke="#27272a" stroke-width="1.5" />
+
+  <!-- Studio Top Toolbar -->
+  <g transform="translate(0, 0)">
+    <rect width="1100" height="44" rx="14" fill="#121217" />
+    <line x1="0" y1="44" x2="1100" y2="44" stroke="#27272a" stroke-width="1" />
+    
+    <!-- Window Dots -->
+    <circle cx="24" cy="22" r="5" fill="#27272a" />
+    <circle cx="40" cy="22" r="5" fill="#27272a" />
+    <circle cx="56" cy="22" r="5" fill="#27272a" />
+
+    <!-- File Title -->
+    <g transform="translate(80, 14)">
+      <rect width="180" height="20" rx="4" fill="#1c1c24" stroke="#2e2e38" stroke-width="0.8" />
+      <text x="10" y="14" fill="#e4e4e7" font-size="11" font-weight="600" class="code-font">quantum_field_theory.tex</text>
+    </g>
+
+    <!-- Compilation Status Pill -->
+    <g transform="translate(420, 11)">
+      <rect width="260" height="24" rx="12" fill="#062817" stroke="#059669" stroke-width="1" />
+      <circle cx="16" cy="12" r="4" fill="#10b981" class="badge-pulse" />
+      <text x="28" y="16" fill="#6ee7b7" font-size="11" font-weight="700" letter-spacing="0.5" class="code-font">
+        FAST TeX · 4ms BUILD · READY
+      </text>
+    </g>
+
+    <!-- Right Controls -->
+    <g transform="translate(930, 13)">
+      <rect width="146" height="22" rx="4" fill="#1f1f28" stroke="#383844" stroke-width="0.8" />
+      <text x="73" y="15" fill="#a1a1aa" font-size="10" font-weight="600" text-anchor="middle" class="code-font">
+        Mod+Enter  Compile
+      </text>
+    </g>
+  </g>
+
+  <!-- Split View Container -->
+  <!-- LEFT PANE: TeX Code Editor -->
+  <g transform="translate(24, 64)">
+    <rect width="490" height="332" rx="8" fill="#09090c" stroke="#1f1f23" stroke-width="1" />
+
+    <!-- Line Numbers Gutter -->
+    <rect width="36" height="332" rx="8" fill="#0d0e12" />
+    <text x="22" y="32" fill="#52525b" font-size="11" text-anchor="end" class="code-font">01</text>
+    <text x="22" y="54" fill="#52525b" font-size="11" text-anchor="end" class="code-font">02</text>
+    <text x="22" y="76" fill="#52525b" font-size="11" text-anchor="end" class="code-font">03</text>
+    <text x="22" y="98" fill="#52525b" font-size="11" text-anchor="end" class="code-font">04</text>
+    <text x="22" y="120" fill="#52525b" font-size="11" text-anchor="end" class="code-font">05</text>
+    <text x="22" y="142" fill="#52525b" font-size="11" text-anchor="end" class="code-font">06</text>
+    <text x="22" y="164" fill="#52525b" font-size="11" text-anchor="end" class="code-font">07</text>
+    <text x="22" y="186" fill="#52525b" font-size="11" text-anchor="end" class="code-font">08</text>
+    <text x="22" y="208" fill="#52525b" font-size="11" text-anchor="end" class="code-font">09</text>
+    <text x="22" y="230" fill="#52525b" font-size="11" text-anchor="end" class="code-font">10</text>
+    <text x="22" y="252" fill="#52525b" font-size="11" text-anchor="end" class="code-font">11</text>
+    <text x="22" y="274" fill="#52525b" font-size="11" text-anchor="end" class="code-font">12</text>
+    <text x="22" y="296" fill="#52525b" font-size="11" text-anchor="end" class="code-font">13</text>
+
+    <!-- Code Highlighting Text -->
+    <g transform="translate(50, 0)">
+      <text y="32" font-size="12" class="code-font">
+        <tspan fill="#38bdf8">\documentclass</tspan><tspan fill="#a1a1aa">[11pt]{</tspan><tspan fill="#f59e0b">article</tspan><tspan fill="#a1a1aa">}</tspan>
+      </text>
+      <text y="54" font-size="12" class="code-font">
+        <tspan fill="#38bdf8">\usepackage</tspan><tspan fill="#a1a1aa">{</tspan><tspan fill="#f59e0b">amsmath, amssymb, geometry</tspan><tspan fill="#a1a1aa">}</tspan>
+      </text>
+      <text y="76" font-size="12" class="code-font">
+        <tspan fill="#71717a">% Ultra-fast vector PDF typesetting</tspan>
+      </text>
+      <text y="98" font-size="12" class="code-font">
+        <tspan fill="#38bdf8">\title</tspan><tspan fill="#a1a1aa">{</tspan><tspan fill="#ffffff">Invariant Manifolds in QFT</tspan><tspan fill="#a1a1aa">}</tspan>
+      </text>
+      <text y="120" font-size="12" class="code-font">
+        <tspan fill="#38bdf8">\author</tspan><tspan fill="#a1a1aa">{</tspan><tspan fill="#ffffff">Zynckle Advanced Research Lab</tspan><tspan fill="#a1a1aa">}</tspan>
+      </text>
+      <text y="142" font-size="12" class="code-font">
+        <tspan fill="#38bdf8">\begin</tspan><tspan fill="#a1a1aa">{</tspan><tspan fill="#f59e0b">document</tspan><tspan fill="#a1a1aa">}</tspan>
+      </text>
+      <text y="164" font-size="12" class="code-font">
+        <tspan fill="#38bdf8">\maketitle</tspan>
+      </text>
+      <text y="186" font-size="12" class="code-font">
+        <tspan fill="#38bdf8">\section</tspan><tspan fill="#a1a1aa">{</tspan><tspan fill="#ffffff">Hamiltonian Field Equations</tspan><tspan fill="#a1a1aa">}</tspan>
+      </text>
+      <text y="208" font-size="12" class="code-font">
+        <tspan fill="#38bdf8">\begin</tspan><tspan fill="#a1a1aa">{</tspan><tspan fill="#f59e0b">equation</tspan><tspan fill="#a1a1aa">}</tspan>
+      </text>
+      <text y="230" font-size="12" class="code-font">
+        <tspan fill="#ffffff">&nbsp;&nbsp;\mathcal{H} = \int d^3x \left( \frac{1}{2}\pi^2 + \frac{1}{2}(\nabla\phi)^2 \right)</tspan>
+      </text>
+      <text y="252" font-size="12" class="code-font">
+        <tspan fill="#38bdf8">\end</tspan><tspan fill="#a1a1aa">{</tspan><tspan fill="#f59e0b">equation</tspan><tspan fill="#a1a1aa">}</tspan>
+      </text>
+      <text y="274" font-size="12" class="code-font">
+        <tspan fill="#71717a">The energy dispersion relation satisfies:</tspan>
+      </text>
+      <text y="296" font-size="12" class="code-font">
+        <tspan fill="#ffffff">E^2 = p^2c^2 + m_0^2c^4</tspan>
+        <!-- Blinking Code Cursor -->
+        <tspan fill="#10b981" class="tex-cursor">|</tspan>
+      </text>
+    </g>
+  </g>
+
+  <!-- SPLIT DIVIDER -->
+  <g transform="translate(534, 64)">
+    <line x1="0" y1="0" x2="0" y2="332" stroke="#27272a" stroke-width="1.5" />
+    <circle cx="0" cy="166" r="10" fill="#18181b" stroke="#3f3f46" stroke-width="1" />
+    <path d="M-3,166 L3,166 M-1,163 L-3,166 L-1,169 M1,163 L3,166 L1,169" stroke="#a1a1aa" stroke-width="1.2" stroke-linecap="round" />
+  </g>
+
+  <!-- RIGHT PANE: Rendered PDF 1.4 Vector Page -->
+  <g transform="translate(560, 64)">
+    <!-- PDF Paper Sheet -->
+    <rect width="516" height="332" rx="4" fill="url(#pdf-paper)" filter="drop-shadow(0 4px 12px rgba(0,0,0,0.5))" />
+    
+    <!-- Animated PDF Laser Scan Line -->
+    <g class="laser-scan" pointer-events="none">
+      <rect x="0" y="0" width="516" height="8" fill="url(#scan-pdf)" />
+      <line x1="0" y1="4" x2="516" y2="4" stroke="#10b981" stroke-width="1" opacity="0.6" />
+    </g>
+
+    <!-- PDF Page Content -->
+    <g transform="translate(48, 40)">
+      <!-- Title -->
+      <text x="210" y="24" fill="#0f172a" font-size="17" font-weight="800" text-anchor="middle" class="serif-font">
+        Invariant Manifolds in Quantum Field Theory
+      </text>
+
+      <!-- Author & Date -->
+      <text x="210" y="44" fill="#475569" font-size="11" text-anchor="middle" class="serif-font">
+        Zynckle Advanced Research Lab &nbsp;·&nbsp; November 2026
+      </text>
+
+      <!-- Horizontal Divider -->
+      <line x1="60" y1="56" x2="360" y2="56" stroke="#cbd5e1" stroke-width="0.8" />
+
+      <!-- Section 1 -->
+      <text x="0" y="80" fill="#0f172a" font-size="13" font-weight="700" class="serif-font">
+        1. Hamiltonian Field Equations
+      </text>
+
+      <!-- Paragraph Text -->
+      <text x="0" y="102" fill="#334155" font-size="10.5" class="serif-font">
+        We formulate the canonical variational principle across Riemannian manifolds.
+      </text>
+      <text x="0" y="118" fill="#334155" font-size="10.5" class="serif-font">
+        The integrated stress-energy tensor yields the conserved Hamiltonian functional:
+      </text>
+
+      <!-- Typeset Equation Box -->
+      <g transform="translate(30, 134)">
+        <rect width="360" height="34" rx="4" fill="#f8fafc" stroke="#e2e8f0" stroke-width="0.8" />
+        <text x="180" y="22" fill="#0f172a" font-size="12" font-style="italic" text-anchor="middle" class="serif-font">
+          H = ∫ d³x ( ½ π² + ½ (∇φ)² + V(φ) ) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; (1)
+        </text>
+      </g>
+
+      <!-- Section 2 -->
+      <text x="0" y="196" fill="#0f172a" font-size="13" font-weight="700" class="serif-font">
+        2. Relativistic Dispersion Verification
+      </text>
+
+      <text x="0" y="218" fill="#334155" font-size="10.5" class="serif-font">
+        Solving the Poincaré algebra directly validates the Lorentz-invariant invariant:
+      </text>
+
+      <!-- Typeset Equation 2 -->
+      <g transform="translate(60, 230)">
+        <text x="150" y="20" fill="#0f172a" font-size="12.5" font-weight="600" font-style="italic" text-anchor="middle" class="serif-font">
+          E² = p²c² + m₀²c⁴ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; (2)
+        </text>
+      </g>
+    </g>
+
+    <!-- Bottom Page Indicator -->
+    <text x="258" y="318" fill="#94a3b8" font-size="9" text-anchor="middle" class="code-font">
+      — Page 1 of 1 —
+    </text>
+  </g>
+</svg>
