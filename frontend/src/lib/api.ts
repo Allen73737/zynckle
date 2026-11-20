@@ -63,7 +63,16 @@ function handleLocalFallback<T>(path: string, { method = 'GET', body }: Options 
     ] as T;
   }
   if (normPath === '/api/ai/status') {
-    return { available: true, provider: 'Zynckle Neural Assistant (Local)', message: 'Local and cloud models ready' } as T;
+    return {
+      available: true,
+      provider: 'Zynckle Neural Assistant (Local)',
+      message: 'Local and cloud models ready',
+      providers: [
+        { id: 'groq', label: 'Groq Cloud (Llama 3.3 70B)', configured: true, defaultModel: 'llama-3.3-70b-versatile', models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'] },
+        { id: 'gemini', label: 'Google Gemini (Flash 2.0)', configured: false, defaultModel: 'gemini-2.0-flash', models: ['gemini-2.0-flash', 'gemini-1.5-pro'] },
+        { id: 'openrouter', label: 'OpenRouter Multi-Model', configured: false, defaultModel: 'anthropic/claude-3.5-sonnet', models: ['anthropic/claude-3.5-sonnet', 'openai/gpt-4o'] }
+      ]
+    } as T;
   }
   if (normPath === '/api/ai/conversations') {
     return [] as T;
