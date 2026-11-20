@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Activity, Check, Code2, ExternalLink, Laptop, LoaderCircle, Monitor, Pencil, Plus, RefreshCw, RotateCw, Share2, ShieldAlert, ShieldCheck, Smartphone, Tablet, Trash2, X } from 'lucide-react';
+import { Activity, Check, Code2, ExternalLink, Laptop, Layers, LoaderCircle, Monitor, Pencil, Plus, RefreshCw, RotateCw, Share2, ShieldAlert, ShieldCheck, Smartphone, Tablet, Terminal, Trash2, X } from 'lucide-react';
 import ShareDialog from './components/ShareDialog';
 import { api, errorMessage, timeAgo } from './lib/api';
 
@@ -27,6 +27,8 @@ export default function PreviewStudio({ projects, notify, canEdit, isAdmin, acco
   const [sharing, setSharing] = useState<Preview | null>(null);
   const [error, setError] = useState('');
   const [directUrl, setDirectUrl] = useState('');
+  const [multiSyncMode, setMultiSyncMode] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
 
   const seedDemoPreviews = async () => {
     try {
@@ -144,38 +146,96 @@ export default function PreviewStudio({ projects, notify, canEdit, isAdmin, acco
       </aside>
       <section className="preview-stage">
         <div className="preview-stage-toolbar"><span className="zy-stage-title">{active?.title || 'Preview stage'}{active && check && <em className={check.embeddable ? 'ok' : check.embeddable === false ? 'blocked' : ''} title={check.reason}>{check.embeddable ? <ShieldCheck size={11}/> : <ShieldAlert size={11}/>}{check.embeddable ? 'Embeddable' : check.embeddable === false ? 'Embedding blocked' : 'Not checked'}</em>}{checking && <LoaderCircle size={11} className="spin"/>}</span>
-          <div className="viewport-controls">{(Object.keys(VIEWPORTS) as Viewport[]).map(v => { const Icon = VIEWPORTS[v].icon; return <button key={v} className={viewport === v ? 'active' : ''} onClick={() => setViewport(v)} aria-label={VIEWPORTS[v].label} title={VIEWPORTS[v].label}><Icon size={15}/></button>; })}
-            {(viewport === 'mobile' || viewport === 'tablet') && <button onClick={() => setLandscape(l => !l)} aria-label="Rotate" title="Rotate"><RotateCw size={14}/></button>}
+          <div className="viewport-controls">
+            <button
+              className={multiSyncMode ? 'active' : ''}
+              onClick={() => setMultiSyncMode(m => !m)}
+              aria-label="Multi-Device Matrix"
+              title={multiSyncMode ? 'Switch to single viewport' : 'Multi-Device Matrix (Desktop, Tablet, Mobile)'}
+            >
+              <Layers size={15}/>
+            </button>
+            <button
+              className={inspectorOpen ? 'active' : ''}
+              onClick={() => setInspectorOpen(o => !o)}
+              aria-label="Telemetry Inspector"
+              title="Toggle bottom telemetry inspector"
+            >
+              <Terminal size={15}/>
+            </button>
+            {(Object.keys(VIEWPORTS) as Viewport[]).map(v => { const Icon = VIEWPORTS[v].icon; return <button key={v} className={!multiSyncMode && viewport === v ? 'active' : ''} onClick={() => { setViewport(v); setMultiSyncMode(false); }} aria-label={VIEWPORTS[v].label} title={VIEWPORTS[v].label}><Icon size={15}/></button>; })}
+            {(viewport === 'mobile' || viewport === 'tablet') && !multiSyncMode && <button onClick={() => setLandscape(l => !l)} aria-label="Rotate" title="Rotate"><RotateCw size={14}/></button>}
             {active && <button onClick={() => setReloadKey(k => k + 1)} aria-label="Reload preview" title="Reload"><RefreshCw size={14}/></button>}
             {active && canEdit && (active.ownerId === accountId || isAdmin) && <button onClick={() => setSharing(active)} aria-label="Share" title="Share"><Share2 size={14}/></button>}
             {active && canEdit && <button onClick={() => startEdit(active)} aria-label="Edit preview" title="Edit"><Pencil size={14}/></button>}
-            {active && <button className="preview-external" onClick={() => window.open(frameUrl || active.url, '_blank', 'noopener,noreferrer')}><ExternalLink size={14}/> Open externally</button>}</div></div>
+            {active && <button className="preview-external" onClick={() => window.open(frameUrl || active.url, '_blank', 'noopener,noreferrer')}><ExternalLink size={14}/> Open externally</button>}
+          </div></div>
         {active?.description && <p className="zy-preview-desc">{active.description}</p>}
         <div className="site-preview">
           {active && check?.embeddable === false && check.reachable !== false && <div className="zy-frame-warning"><ShieldAlert size={16}/><div><strong>This site prevents iframe embedding</strong><small>{check.reason}. Click “Open externally” to view in a new tab.</small></div></div>}
           {active && check?.reachable === false && <div className="zy-frame-warning"><ShieldAlert size={16}/><div><strong>The site could not be reached</strong><small>{check.reason}</small></div></div>}
-          <div className={`preview-frame preview-${viewport}`} style={frameWidth ? { maxWidth: frameWidth } : undefined}>
-            {active && frameUrl ? (
-              check?.embeddable === false ? (
-                <div className="doc-empty zy-blocked-frame">
-                  <ShieldAlert size={36}/>
-                  <h2>{active.title} protects frame embedding</h2>
-                  <p>{check.reason}. To view this site safely, launch it directly in a dedicated tab.</p>
-                  <button className="button-primary" onClick={() => window.open(frameUrl || active.url, '_blank', 'noopener,noreferrer')}><ExternalLink size={14}/> Open externally</button>
-                </div>
-              ) : (
-                <iframe key={`${frameUrl}-${reloadKey}`} title={`Preview of ${active.title}`} src={frameUrl} sandbox="allow-scripts allow-forms allow-popups" referrerPolicy="no-referrer" loading="lazy"/>
-              )
-            ) : (
-              <div className="doc-empty">
-                <Activity/>
-                <h2>Your preview stage</h2>
-                <p>Save a public deployment URL, or a Zynckle Code project containing index.html.</p>
-                {canEdit && previews?.length === 0 && <button className="button-secondary zy-gap-top" onClick={seedDemoPreviews}><Plus size={14}/> Add demo preview</button>}
+
+          {multiSyncMode && active && frameUrl && check?.embeddable !== false ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16, width: '100%', padding: '12px 0' }}>
+              <div style={{ border: '1px solid var(--line)', borderRadius: 'var(--radius-m)', padding: 8, background: 'var(--surface-soft)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, marginBottom: 6 }}><Monitor size={12}/> Desktop Matrix (1440 × 900)</div>
+                <iframe key={`desktop-${frameUrl}-${reloadKey}`} title="Desktop View" src={frameUrl} style={{ width: '100%', height: 440, border: 'none', background: '#fff' }} sandbox="allow-scripts allow-forms allow-popups" referrerPolicy="no-referrer"/>
               </div>
-            )}
-          </div>
+              <div style={{ border: '1px solid var(--line)', borderRadius: 'var(--radius-m)', padding: 8, background: 'var(--surface-soft)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, marginBottom: 6 }}><Tablet size={12}/> Tablet Matrix (768 × 1024)</div>
+                <iframe key={`tablet-${frameUrl}-${reloadKey}`} title="Tablet View" src={frameUrl} style={{ width: '100%', height: 440, border: 'none', background: '#fff' }} sandbox="allow-scripts allow-forms allow-popups" referrerPolicy="no-referrer"/>
+              </div>
+              <div style={{ border: '1px solid var(--line)', borderRadius: 'var(--radius-m)', padding: 8, background: 'var(--surface-soft)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, marginBottom: 6 }}><Smartphone size={12}/> Mobile Matrix (390 × 844)</div>
+                <iframe key={`mobile-${frameUrl}-${reloadKey}`} title="Mobile View" src={frameUrl} style={{ width: '100%', height: 440, border: 'none', background: '#fff' }} sandbox="allow-scripts allow-forms allow-popups" referrerPolicy="no-referrer"/>
+              </div>
+            </div>
+          ) : (
+            <div className={`preview-frame preview-${viewport}`} style={frameWidth ? { maxWidth: frameWidth } : undefined}>
+              {active && frameUrl ? (
+                check?.embeddable === false ? (
+                  <div className="doc-empty zy-blocked-frame">
+                    <ShieldAlert size={36}/>
+                    <h2>{active.title} protects frame embedding</h2>
+                    <p>{check.reason}. To view this site safely, launch it directly in a dedicated tab.</p>
+                    <button className="button-primary" onClick={() => window.open(frameUrl || active.url, '_blank', 'noopener,noreferrer')}><ExternalLink size={14}/> Open externally</button>
+                  </div>
+                ) : (
+                  <iframe key={`${frameUrl}-${reloadKey}`} title={`Preview of ${active.title}`} src={frameUrl} sandbox="allow-scripts allow-forms allow-popups" referrerPolicy="no-referrer" loading="lazy"/>
+                )
+              ) : (
+                <div className="doc-empty">
+                  <Activity/>
+                  <h2>Your preview stage</h2>
+                  <p>Save a public deployment URL, or a Zynckle Code project containing index.html.</p>
+                  {canEdit && previews?.length === 0 && <button className="button-secondary zy-gap-top" onClick={seedDemoPreviews}><Plus size={14}/> Add demo preview</button>}
+                </div>
+              )}
+            </div>
+          )}
         </div>
+
+        {/* Console & Security Telemetry Drawer */}
+        {inspectorOpen && (
+          <div style={{
+            marginTop: 16, border: '1px solid var(--line)', borderRadius: 'var(--radius-m)',
+            background: 'var(--surface-soft)', padding: 14, fontFamily: "'DM Mono', monospace", fontSize: 12
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Terminal size={14}/>
+                <strong>Viewport Security & Telemetry Audit</strong>
+              </div>
+              <button className="icon-button" onClick={() => setInspectorOpen(false)}><X size={13}/></button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10, color: 'var(--ink)' }}>
+              <div>• Origin Isolation: <span style={{ color: 'var(--ink-strong)' }}>Active (sandbox="allow-scripts")</span></div>
+              <div>• Anti-SSRF Guard: <span style={{ color: 'var(--ink-strong)' }}>Enforced (Private IPs blocked)</span></div>
+              <div>• Frame Embedding: <span style={{ color: check?.embeddable ? 'var(--ink-strong)' : 'var(--muted)' }}>{check?.embeddable ? 'Allowed' : check?.reason || 'Checking…'}</span></div>
+              <div>• Referrer Policy: <span style={{ color: 'var(--ink-strong)' }}>no-referrer</span></div>
+            </div>
+          </div>
+        )}
         <p className="preview-footnote">{active ? `${VIEWPORTS[viewport].label}${landscape ? ' (landscape)' : ''} · added ${timeAgo(active.createdAt)} by ${active.owner}. ` : ''}Frames are sandboxed. Uploaded applications are not executed on Zynckle servers; framework apps should be previewed from their deployed URL.</p>
       </section>
     </div>

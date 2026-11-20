@@ -20,7 +20,9 @@ export default function CommandPalette({ onClose, actions }: { onClose: () => vo
   const commands = useMemo(() => [
     { id: 'new-project', title: 'Create a project', icon: Plus, run: () => { onClose(); actions.newProject(); }, keywords: 'new add' },
     { id: 'new-task', title: 'Add a task', icon: Plus, run: () => { onClose(); actions.newTask(); }, keywords: 'new todo' },
+    { id: 'scratchpad', title: 'Open Quick Scratchpad (Ctrl+E)', icon: FileText, run: () => { onClose(); window.dispatchEvent(new CustomEvent('zynckle:toggle-scratchpad')); }, keywords: 'notes memo scratch pad' },
     { id: 'ask', title: 'Ask Zynckle AI', icon: Sparkles, run: () => { onClose(); actions.askAI(); }, keywords: 'assistant chat help' },
+    { id: 'latex-decompile', title: 'Decompile PDF to LaTeX', icon: FileCode2, run: () => go('/latex'), keywords: 'pdf convert decompile latex' },
     { id: 'overview', title: 'Go to Overview', icon: LayoutDashboard, run: () => go('/'), keywords: 'dashboard home' },
     { id: 'projects', title: 'Go to Projects', icon: FolderKanban, run: () => go('/projects'), keywords: '' },
     { id: 'tasks', title: 'Go to My tasks', icon: Check, run: () => go('/tasks'), keywords: 'todo' },

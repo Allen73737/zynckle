@@ -1,11 +1,12 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { Newspaper, Keyboard, Activity, ArrowRight, Bell, BookOpen, Check, ChevronDown, Code2, Command, FileCode2, FolderKanban, HardDrive, Info, LayoutDashboard, LogOut, Menu, Moon, MoreHorizontal, Plus, Search, Settings, Sparkles, Square, Sun, Users, X, Save } from 'lucide-react';
+import { Newspaper, Keyboard, Activity, ArrowRight, Bell, BookOpen, Check, ChevronDown, Code2, Command, FileCode2, FileText, FolderKanban, HardDrive, Info, LayoutDashboard, LogOut, Menu, Moon, MoreHorizontal, PenLine, Plus, Search, Settings, Sparkles, Square, Sun, Users, X, Save } from 'lucide-react';
 import Dashboard from './Dashboard';
 import AuthGate from './AuthScreens';
 import NotificationsPanel from './NotificationsPanel';
 import CommandPalette from './CommandPalette';
 import QuickCapture from './QuickCapture';
+import ScratchpadDrawer from './components/ScratchpadDrawer';
 import { Projects, ProjectDetail, Tasks, TaskDrawer, type Project, type Task } from './ProjectViews';
 import type { Account } from './SettingsStudio';
 import { api, errorMessage, formatBytes, streamAI } from './lib/api';
@@ -55,6 +56,7 @@ export default function App() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [scratchpadOpen, setScratchpadOpen] = useState(false);
   const [openTask, setOpenTask] = useState<Task | null>(null);
   const [workspace, setWorkspace] = useState('Studio');
   const [workspaceId, setWorkspaceId] = useState('');
@@ -147,12 +149,19 @@ export default function App() {
 
   useEffect(() => { sendPresence(location.pathname); if (window.innerWidth <= 768) setSidebarExpanded(false); setProfileMenu(false); }, [location.pathname]);
   useEffect(() => {
+    const onToggleScratch = () => setScratchpadOpen(o => !o);
+    window.addEventListener('zynckle:toggle-scratchpad', onToggleScratch);
+    return () => window.removeEventListener('zynckle:toggle-scratchpad', onToggleScratch);
+  }, []);
+
+  useEffect(() => {
     // Global keyboard layer. Single keys only fire when you are not typing.
     let chord = 0;
     const routes: Record<string, string> = { d: '/', y: '/today', p: '/projects', t: '/tasks', o: '/documents', a: '/ai', l: '/latex', c: '/code', f: '/drive', w: '/previews', m: '/team', s: '/settings', i: '/about' };
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setPaletteOpen(o => !o); return; }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j') { e.preventDefault(); setAiOpen(o => !o); return; }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'e') { e.preventDefault(); setScratchpadOpen(o => !o); return; }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b') { e.preventDefault(); toggleSidebar(); return; }
       const target = e.target as HTMLElement;
       if (e.metaKey || e.ctrlKey || e.altKey || target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) || document.querySelector('.modal-backdrop, .zy-palette-backdrop, .assistant-backdrop')) return;
@@ -393,6 +402,9 @@ export default function App() {
               <button className="drawer-icon-btn" onClick={() => setPaletteOpen(true)} title="Command Search (Ctrl+K)">
                 <Search size={18} />
               </button>
+              <button className="drawer-icon-btn" onClick={() => setScratchpadOpen(true)} title="Quick Scratchpad (Ctrl+E)">
+                <PenLine size={18} />
+              </button>
               <button className="drawer-icon-btn" onClick={toggleTheme} title={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} mode`}>
                 {resolvedTheme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
               </button>
@@ -430,6 +442,9 @@ export default function App() {
             )}
             <button className="drawer-icon-btn" onClick={() => setPaletteOpen(true)} title="Command Search (Ctrl+K)">
               <Search size={19} />
+            </button>
+            <button className="drawer-icon-btn" onClick={() => setScratchpadOpen(true)} title="Quick Scratchpad (Ctrl+E)">
+              <PenLine size={19} />
             </button>
             <button className="drawer-icon-btn" onClick={toggleTheme} title={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} mode`}>
               {resolvedTheme === 'dark' ? <Sun size={19} /> : <Moon size={19} />}
@@ -547,6 +562,7 @@ export default function App() {
     {aiOpen && <AssistantPanel projects={projects} onClose={() => setAiOpen(false)}/>}
     {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} actions={{ newProject: () => setModal(true), newTask: () => setCaptureOpen(true), toggleTheme, askAI: () => setAiOpen(true) }}/>}
     {captureOpen && <QuickCapture projects={projects} defaultProjectId={location.pathname.startsWith('/projects/') ? location.pathname.split('/')[2] : undefined} onClose={() => setCaptureOpen(false)} onCreated={task => { setTasks(items => [normaliseTask(task), ...items.filter(t => t.id !== task.id)]); notify(`Added “${task.title}”`); }}/>}
+    {scratchpadOpen && <ScratchpadDrawer onClose={() => setScratchpadOpen(false)} notify={notify} onNavigate={navigate} />}
     {shortcutsOpen && <ShortcutSheet onClose={() => setShortcutsOpen(false)}/>}
     {taskModal && <TaskModal projects={projects} project={taskProject} onClose={() => { setTaskModal(false); setTaskProject(''); }} onCreate={createTask}/>}
     {!aiOpen && !location.pathname.startsWith('/ai') && <button onClick={() => setAiOpen(true)} className="ai-fab" aria-label="Ask Zynckle AI (Ctrl+J)" title="Ask Zynckle AI (Ctrl+J)"><Sparkles size={17}/><span>Ask AI</span></button>}
@@ -555,7 +571,7 @@ export default function App() {
 }
 
 const SHORTCUTS: [string, [string, string[]][]][] = [
-  ['Anywhere', [['Command menu & search', ['Ctrl', 'K']], ['Quick capture a task', ['C']], ['Ask Zynckle AI', ['Ctrl', 'J']], ['Search', ['/']], ['This sheet', ['?']]]],
+  ['Anywhere', [['Command menu & search', ['Ctrl', 'K']], ['Quick Scratchpad HUD', ['Ctrl', 'E']], ['Quick capture a task', ['C']], ['Ask Zynckle AI', ['Ctrl', 'J']], ['Search', ['/']], ['This sheet', ['?']]]],
   ['Go to', [['Overview', ['G', 'D']], ['The Daily Edition', ['G', 'Y']], ['Projects', ['G', 'P']], ['My tasks', ['G', 'T']], ['Documents', ['G', 'O']], ['Zynckle AI', ['G', 'A']], ['Code', ['G', 'C']], ['Drive', ['G', 'F']], ['Team', ['G', 'M']], ['Settings', ['G', 'S']]]],
   ['Writing', [['Save a revision (LaTeX)', ['Ctrl', 'S']], ['Compile PDF', ['Ctrl', 'Enter']], ['Bold · Italic · Underline', ['Ctrl', 'B / I / U']], ['Leave focus mode', ['Esc']]]],
 ];

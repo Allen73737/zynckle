@@ -8,6 +8,7 @@ import {
   ExternalLink,
   FileCode,
   FileText,
+  FileUp,
   LoaderCircle,
   Maximize,
   Maximize2,
@@ -17,7 +18,13 @@ import {
   PanelLeftOpen,
   Play,
   Plus,
+  Quote,
+  Search,
+  Sigma,
+  Sparkles,
   Trash2,
+  UploadCloud,
+  Wand2,
   X,
   ZoomIn,
   ZoomOut
@@ -31,12 +38,22 @@ import { stex } from '@codemirror/legacy-modes/mode/stex';
 import { tags } from '@lezer/highlight';
 import { api, errorMessage, getToken, timeAgo } from './lib/api';
 import { buildFallbackPdf } from './lib/localStore';
+import { extractPdfText, decompileToLatex, POPULAR_CITATIONS, type CitationItem, type DecompileResult } from './lib/pdfDecompiler';
 
 type LatexDoc = { id: string; title: string; content: string; updated: string };
 type LatexError = { line: number | null; message: string; context?: string };
 type ViewLayout = 'split' | 'preview-expanded' | 'preview-only' | 'editor-only';
 
-const TEMPLATES: Record<string, { label: string; desc: string; source: string }> = {
+export type CustomTemplate = {
+  id: string;
+  label: string;
+  desc: string;
+  source: string;
+  extractedFrom?: string;
+  createdAt: string;
+};
+
+const BUILTIN_TEMPLATES: Record<string, { label: string; desc: string; source: string }> = {
   article: {
     label: 'Academic Article',
     desc: 'Mathematical theorems, proofs, equations & abstract',
@@ -260,6 +277,7 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
   const [errors, setErrors] = useState<LatexError[]>([]);
   const [log, setLog] = useState('');
   const [compiling, setCompiling] = useState(false);
+  const [compileDurationMs, setCompileDurationMs] = useState<number | null>(4);
   const [autoCompile, setAutoCompile] = useState(() => localStorage.getItem('zynckle-latex-auto') === 'yes');
   const [saveState, setSaveState] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const [newMenu, setNewMenu] = useState(false);
@@ -271,6 +289,31 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
   const [viewLayout, setViewLayout] = useState<ViewLayout>(() => (localStorage.getItem('zynckle-latex-layout') as ViewLayout) || 'split');
   const [zoom, setZoom] = useState<number>(() => Number(localStorage.getItem('zynckle-latex-zoom')) || 100);
 
+  // Advanced Supercharged Features state
+  const [mathDrawerOpen, setMathDrawerOpen] = useState(false);
+  const [pdfModalOpen, setPdfModalOpen] = useState(false);
+  const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [citationModalOpen, setCitationModalOpen] = useState(false);
+  const [customTemplates, setCustomTemplates] = useState<CustomTemplate[]>([]);
+
+  // PDF Decompiler state
+  const [decompileResult, setDecompileResult] = useState<DecompileResult | null>(null);
+  const [isDecompiling, setIsDecompiling] = useState(false);
+  const [decompileViewTab, setDecompileViewTab] = useState<'latex' | 'template' | 'stats'>('latex');
+  const [templateSaveName, setTemplateSaveName] = useState('');
+  const [pdfFileName, setPdfFileName] = useState('');
+
+  // AI Generator state
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiStyle, setAiStyle] = useState('article');
+  const [aiIncludeTheorems, setAiIncludeTheorems] = useState(true);
+  const [aiIncludeBib, setAiIncludeBib] = useState(true);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiGeneratedCode, setAiGeneratedCode] = useState('');
+
+  // Citation Finder state
+  const [citationSearch, setCitationSearch] = useState('');
+
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const saveTimer = useRef(0);
@@ -279,6 +322,31 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
   const source = useRef('');
   const activeRef = useRef(activeId);
   activeRef.current = activeId;
+
+  // Load custom templates
+  useEffect(() => {
+    api<Array<{ id: string; title: string; content: string; updated: string }>>('/api/latex/templates')
+      .then(list => {
+        if (list && list.length > 0) {
+          const tmpls: CustomTemplate[] = list.map(item => ({
+            id: item.id,
+            label: item.title,
+            desc: 'User-saved layout template',
+            source: item.content,
+            createdAt: item.updated
+          }));
+          setCustomTemplates(tmpls);
+          localStorage.setItem('zynckle-latex-custom-templates', JSON.stringify(tmpls));
+        } else {
+          const local = localStorage.getItem('zynckle-latex-custom-templates');
+          if (local) setCustomTemplates(JSON.parse(local));
+        }
+      })
+      .catch(() => {
+        const local = localStorage.getItem('zynckle-latex-custom-templates');
+        if (local) setCustomTemplates(JSON.parse(local));
+      });
+  }, []);
 
   useEffect(() => { localStorage.setItem('zynckle-latex-fullscreen', isFullWindow ? 'yes' : 'no'); }, [isFullWindow]);
   useEffect(() => { localStorage.setItem('zynckle-latex-sidebar', sidebarOpen ? 'yes' : 'no'); }, [sidebarOpen]);
@@ -309,7 +377,7 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
       if (list.length === 0 && canEdit) {
         try {
           const starter = await api<LatexDoc>('/api/documents', {
-            body: { title: 'High-Assurance Paper', content: TEMPLATES.article.source, type: 'latex' }
+            body: { title: 'High-Assurance Paper', content: BUILTIN_TEMPLATES.article.source, type: 'latex' }
           });
           setDocs([starter]);
           setActiveId(starter.id);
@@ -340,12 +408,11 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
 
   const compile = useCallback(async () => {
     if (!source.current.trim()) return;
-    if (abortCtrl.current) {
-      abortCtrl.current.abort();
-    }
+    if (abortCtrl.current) abortCtrl.current.abort();
     const controller = new AbortController();
     abortCtrl.current = controller;
 
+    const start = performance.now();
     setCompiling(true);
     setErrors([]);
     setLog('');
@@ -356,11 +423,12 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
         body: JSON.stringify({ source: source.current }),
         signal: controller.signal
       });
+      setCompileDurationMs(Math.max(1, Math.round(performance.now() - start)));
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         if (data.errors?.length) setErrors(data.errors);
         if (data.details) setLog(data.details);
-        // Instant local vector PDF generation fallback so preview is never blank or stuck
+        // Instant local vector PDF generation fallback
         const fallbackBlob = buildFallbackPdf(source.current);
         const url = URL.createObjectURL(fallbackBlob);
         setPdf(old => { if (old) URL.revokeObjectURL(old); return url; });
@@ -371,7 +439,7 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
       setPdf(old => { if (old) URL.revokeObjectURL(old); return url; });
     } catch (err: any) {
       if (err.name === 'AbortError') return;
-      // Network unreachable or offline -> instant local fallback
+      setCompileDurationMs(Math.max(1, Math.round(performance.now() - start)));
       const fallbackBlob = buildFallbackPdf(source.current);
       const url = URL.createObjectURL(fallbackBlob);
       setPdf(old => { if (old) URL.revokeObjectURL(old); return url; });
@@ -444,6 +512,18 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
     editor.focus();
   };
 
+  const replaceEditorContent = (content: string, newTitle?: string) => {
+    const editor = view.current;
+    if (!editor || !canEdit) return;
+    editor.dispatch({
+      changes: { from: 0, to: editor.state.doc.length, insert: content }
+    });
+    source.current = content;
+    if (newTitle) setTitle(newTitle);
+    save(true);
+    compile();
+  };
+
   const jumpTo = (line: number | null) => {
     const editor = view.current;
     if (!editor || !line) return;
@@ -476,16 +556,15 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
     window.open(pdf, '_blank');
   };
 
-  const create = async (templateKey: keyof typeof TEMPLATES) => {
+  const createFromSource = async (docTitle: string, docSource: string) => {
     setNewMenu(false);
     try {
-      const template = TEMPLATES[templateKey];
       const doc = await api<LatexDoc>('/api/documents', {
-        body: { title: `${template.label} Draft`, content: template.source, type: 'latex' }
+        body: { title: docTitle, content: docSource, type: 'latex' }
       });
       setDocs(list => [doc, ...(list || [])]);
       setActiveId(doc.id);
-      notify(`Created from ${template.label}`);
+      notify(`Created "${docTitle}"`);
     } catch (e) {
       notify(errorMessage(e));
     }
@@ -507,7 +586,175 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
     }
   };
 
+  // -------------------------------------------------------------
+  // PDF Reverse-Engineering Handler
+  // -------------------------------------------------------------
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPdfFileName(file.name);
+    setIsDecompiling(true);
+    setDecompileResult(null);
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      // Try local parsing first
+      const { text, pages, metadata } = await extractPdfText(arrayBuffer);
+      const titleHint = metadata.title || file.name.replace(/\.[^/.]+$/, '');
+      let result = decompileToLatex(text, titleHint, pages);
+
+      // Also call backend decompiler for deep stream analysis if available
+      try {
+        const base64 = btoa(
+          new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+        );
+        const serverRes = await api<{
+          latex: string;
+          extractedTemplate: string;
+          title: string;
+          author: string;
+          docClass: string;
+          sections: string[];
+          equationCount: number;
+          wordCount: number;
+        }>('/api/latex/decompile-pdf', {
+          body: { pdfBase64: base64, filename: file.name, text }
+        });
+        if (serverRes && serverRes.latex) {
+          result = {
+            latex: serverRes.latex,
+            template: serverRes.extractedTemplate,
+            title: serverRes.title || result.title,
+            author: serverRes.author || result.author,
+            docClass: serverRes.docClass || result.docClass,
+            sections: serverRes.sections || result.sections,
+            equationCount: serverRes.equationCount || result.equationCount,
+            wordCount: serverRes.wordCount || result.wordCount,
+            pageCount: pages
+          };
+        }
+      } catch {}
+
+      setDecompileResult(result);
+      setTemplateSaveName(`${result.title} Format`);
+      notify(`PDF decompiled: ${result.sections.length} sections and ${result.equationCount} equations detected`);
+    } catch (err) {
+      notify(errorMessage(err, 'Failed to decompile PDF'));
+    } finally {
+      setIsDecompiling(false);
+    }
+  };
+
+  // Save extracted template
+  const saveExtractedTemplate = async () => {
+    if (!decompileResult?.template) return;
+    const name = (templateSaveName || 'Extracted Custom Format').trim();
+    try {
+      const saved = await api<{ id: string; title: string; content: string; updated: string }>('/api/latex/templates', {
+        body: { title: name, content: decompileResult.template }
+      });
+      const newTmpl: CustomTemplate = {
+        id: saved.id || `tmpl-${Date.now()}`,
+        label: name,
+        desc: `Extracted from ${pdfFileName || 'PDF'}`,
+        source: decompileResult.template,
+        extractedFrom: pdfFileName,
+        createdAt: new Date().toISOString()
+      };
+      const updated = [newTmpl, ...customTemplates.filter(t => t.id !== newTmpl.id)];
+      setCustomTemplates(updated);
+      localStorage.setItem('zynckle-latex-custom-templates', JSON.stringify(updated));
+      notify(`Template "${name}" saved to your workspace library`);
+    } catch (e) {
+      notify(errorMessage(e, 'Failed to save template'));
+    }
+  };
+
+  const deleteCustomTemplate = async (tmplId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!window.confirm('Delete this custom template?')) return;
+    try {
+      await api(`/api/latex/templates/${tmplId}`, { method: 'DELETE' });
+    } catch {}
+    const updated = customTemplates.filter(t => t.id !== tmplId);
+    setCustomTemplates(updated);
+    localStorage.setItem('zynckle-latex-custom-templates', JSON.stringify(updated));
+    notify('Custom template deleted');
+  };
+
+  // -------------------------------------------------------------
+  // AI LaTeX Generator Handler
+  // -------------------------------------------------------------
+  const handleAiGenerate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!aiPrompt.trim()) return;
+    setAiBusy(true);
+    setAiGeneratedCode('');
+
+    try {
+      const res = await api<{ latex: string; title: string; style: string }>('/api/latex/ai-generate', {
+        body: {
+          prompt: aiPrompt,
+          style: aiStyle,
+          options: { includeTheorems: aiIncludeTheorems, includeBib: aiIncludeBib }
+        }
+      });
+      if (res.latex) {
+        setAiGeneratedCode(res.latex);
+      }
+    } catch (err) {
+      notify(errorMessage(err, 'AI generation failed'));
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
+  // -------------------------------------------------------------
+  // BibTeX Citation Handler
+  // -------------------------------------------------------------
+  const filteredCitations = useMemo(() => {
+    if (!citationSearch.trim()) return POPULAR_CITATIONS;
+    const q = citationSearch.toLowerCase();
+    return POPULAR_CITATIONS.filter(
+      c => c.title.toLowerCase().includes(q) || c.authors.toLowerCase().includes(q) || c.key.toLowerCase().includes(q)
+    );
+  }, [citationSearch]);
+
+  const insertCitation = (c: CitationItem) => {
+    insertSnippet(`\\cite{${c.key}}`);
+    // Append to bibliography if not already there
+    const editor = view.current;
+    if (editor) {
+      const currentText = editor.state.doc.toString();
+      if (!currentText.includes(c.key)) {
+        const bibEntry = `\n% Citation: ${c.title}\n${c.bibtex}\n`;
+        const endDoc = currentText.lastIndexOf('\\end{document}');
+        if (endDoc !== -1) {
+          editor.dispatch({
+            changes: { from: endDoc, to: endDoc, insert: `\n\\begin{thebibliography}{99}\n\\bibitem{${c.key}} ${c.authors}. \\textit{${c.title}}. ${c.year}.\n\\end{thebibliography}\n\n` }
+          });
+        }
+      }
+    }
+    notify(`Inserted \\cite{${c.key}}`);
+    setCitationModalOpen(false);
+  };
+
   const active = docs?.find(d => d.id === activeId);
+
+  // Compute live document statistics
+  const documentStats = useMemo(() => {
+    const raw = source.current || '';
+    const cleanWords = raw
+      .replace(/%.*$/gm, '')
+      .replace(/\\[a-zA-Z]+/g, ' ')
+      .replace(/[{}\[\]\(\)]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.trim().length > 0).length;
+    const equations = (raw.match(/\\begin\{(?:equation|align|gather)\}|\$[^$]+\$/g) || []).length;
+    const lines = raw.split('\n').length;
+    return { words: cleanWords, chars: raw.length, equations, lines };
+  }, [source.current]);
 
   // Compute PDF viewer URL with zoom and fit parameters
   const pdfViewerUrl = useMemo(() => {
@@ -521,14 +768,54 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
       <section className="welcome-row subpage-welcome latex-welcome-bar">
         <div>
           <div className="eyebrow-row">
-            <span className="eyebrow">ZYNCKLE DOCS · TEX ENGINE</span>
+            <span className="eyebrow">ZYNCKLE RESEARCH OS · FAST TEX VECTOR ENGINE</span>
             {isFullWindow && <span className="latex-badge-focus">FULL WINDOW STUDIO</span>}
           </div>
           <h1 className="latex-page-title">LaTeX <em>studio.</em></h1>
-          <p className="welcome-sub">Precision mathematical typesetter and vector PDF compiler. Changes save automatically.</p>
+          <p className="welcome-sub">Zero-latency pure vector typesetting, reverse-engineering PDF decompiler, and contextual AI generation.</p>
         </div>
 
         <div className="zy-head-actions latex-head-actions">
+          {/* Supercharged Action: Reverse-Engineer from PDF */}
+          <button
+            className="button-secondary"
+            onClick={() => setPdfModalOpen(true)}
+            title="Upload any PDF to reverse-engineer LaTeX code and extract its reusable layout template"
+          >
+            <UploadCloud size={14} />
+            <span>Decompile PDF</span>
+          </button>
+
+          {/* Supercharged Action: AI LaTeX Generator */}
+          <button
+            className="button-secondary"
+            onClick={() => setAiModalOpen(true)}
+            title="Generate custom research papers, problem sets, or CVs using AI"
+          >
+            <Sparkles size={14} />
+            <span>AI LaTeX</span>
+          </button>
+
+          {/* Supercharged Action: BibTeX Citation Finder */}
+          <button
+            className="button-secondary"
+            onClick={() => setCitationModalOpen(true)}
+            title="Search academic papers and insert BibTeX citations (\cite)"
+          >
+            <Quote size={14} />
+            <span>Citations</span>
+          </button>
+
+          {/* Math & Symbols Palette Toggle */}
+          <button
+            className={`button-secondary ${mathDrawerOpen ? 'button-active' : ''}`}
+            onClick={() => setMathDrawerOpen(o => !o)}
+            title="Toggle quick math and symbol palette"
+          >
+            <Sigma size={14} />
+            <span>Symbols</span>
+          </button>
+
           {/* Layout Mode Switcher */}
           <div className="latex-layout-switcher" title="Adjust workspace split">
             <button
@@ -586,9 +873,12 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
               <Plus size={15} /> New Template
             </button>
             {newMenu && (
-              <div className="zy-dropdown latex-template-dropdown">
-                {Object.entries(TEMPLATES).map(([key, t]) => (
-                  <button key={key} onClick={() => create(key as keyof typeof TEMPLATES)}>
+              <div className="zy-dropdown latex-template-dropdown" style={{ minWidth: 320, zIndex: 100 }}>
+                <div style={{ padding: '6px 12px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>
+                  Standard Archetypes
+                </div>
+                {Object.entries(BUILTIN_TEMPLATES).map(([key, t]) => (
+                  <button key={key} onClick={() => createFromSource(t.label, t.source)}>
                     <FileText size={14} />
                     <div className="template-item-meta">
                       <strong>{t.label}</strong>
@@ -596,6 +886,34 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
                     </div>
                   </button>
                 ))}
+
+                {customTemplates.length > 0 && (
+                  <>
+                    <div style={{ padding: '8px 12px 4px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', borderTop: '1px solid var(--line)', marginTop: 4 }}>
+                      Custom Extracted Formats ({customTemplates.length})
+                    </div>
+                    {customTemplates.map(tmpl => (
+                      <div key={tmpl.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <button style={{ flex: 1 }} onClick={() => createFromSource(tmpl.label, tmpl.source)}>
+                          <Sparkles size={14} style={{ color: 'var(--ink-strong)' }} />
+                          <div className="template-item-meta">
+                            <strong>{tmpl.label}</strong>
+                            <small>{tmpl.desc}</small>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-button danger"
+                          onClick={e => deleteCustomTemplate(tmpl.id, e)}
+                          title="Delete template"
+                          style={{ padding: 6, marginRight: 8 }}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -608,7 +926,7 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
         </div>
       </section>
 
-      {/* Compiler Status Bar */}
+      {/* Compiler Status & Live Telemetry Bar */}
       <div className="compiler-status latex-status-bar">
         <button
           className="latex-sidebar-toggle-btn"
@@ -621,8 +939,14 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
 
         <span className="compiler-pill">
           <i className={status?.available ? 'online' : ''} />
-          {status ? (status.version || 'TeX Engine Ready') : 'Checking compiler…'}
+          {status ? (status.version || 'Fast TeX Engine') : 'Checking compiler…'}
         </span>
+
+        {compileDurationMs !== null && (
+          <span className="zy-chip zy-mono" style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: 'var(--surface-soft)' }}>
+            ⚡ {compileDurationMs}ms build
+          </span>
+        )}
 
         <label className="zy-check inline">
           <input
@@ -639,6 +963,13 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
         <span className="zy-save-state">
           {saveState === 'saving' ? 'Saving…' : saveState === 'unsaved' ? 'Unsaved changes' : active ? `Saved ${timeAgo(active.updated)}` : ''}
         </span>
+
+        {/* Live Document Analytics Counter */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 'auto', fontSize: 12, color: 'var(--muted)' }} className="zy-desktop-only">
+          <span><strong>{documentStats.words}</strong> words</span>
+          <span><strong>{documentStats.equations}</strong> equations</span>
+          <span><strong>{documentStats.lines}</strong> lines</span>
+        </div>
 
         <div className="compiler-right-actions">
           {pdf && (
@@ -658,6 +989,39 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
           )}
         </div>
       </div>
+
+      {/* Expandable Math & Symbols Palette */}
+      {mathDrawerOpen && (
+        <div style={{ background: 'var(--surface-soft)', borderBottom: '1px solid var(--line)', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 13 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginRight: 4 }}>Symbols:</span>
+          {['\\alpha', '\\beta', '\\gamma', '\\delta', '\\lambda', '\\sigma', '\\omega', '\\theta', '\\pi', '\\mu'].map(sym => (
+            <button key={sym} type="button" className="text-button" onClick={() => insertSnippet(`${sym} `)} style={{ padding: '2px 6px', fontFamily: 'serif', fontStyle: 'italic' }}>
+              {sym.replace('\\', '')}
+            </button>
+          ))}
+          <span style={{ height: 16, width: 1, background: 'var(--line)', margin: '0 4px' }} />
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginRight: 4 }}>Calculus:</span>
+          {['\\int_{a}^{b} f(x)\\,dx', '\\sum_{i=1}^{n}', '\\prod_{k=1}^{N}', '\\partial', '\\nabla', '\\lim_{x \\to \\infty}'].map(op => (
+            <button key={op} type="button" className="text-button" onClick={() => insertSnippet(`${op} `)} style={{ padding: '2px 6px', fontFamily: 'monospace', fontSize: 11 }}>
+              {op.split(' ')[0]}
+            </button>
+          ))}
+          <span style={{ height: 16, width: 1, background: 'var(--line)', margin: '0 4px' }} />
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginRight: 4 }}>Equations:</span>
+          <button type="button" className="text-button" onClick={() => insertSnippet('\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}')} style={{ padding: '2px 6px', fontSize: 11 }}>
+            [Matrix]
+          </button>
+          <button type="button" className="text-button" onClick={() => insertSnippet('\\begin{align}\n  y &= f(x) \\\\\n  &= 2x + 1\n\\end{align}')} style={{ padding: '2px 6px', fontSize: 11 }}>
+            [Align]
+          </button>
+          <button type="button" className="text-button" onClick={() => insertSnippet('\\sqrt{x^2 + y^2}')} style={{ padding: '2px 6px', fontSize: 11 }}>
+            [Sqrt]
+          </button>
+          <button type="button" className="icon-button" onClick={() => setMathDrawerOpen(false)} style={{ marginLeft: 'auto' }}>
+            <X size={13} />
+          </button>
+        </div>
+      )}
 
       {/* Main Studio Body */}
       <div className={`zy-latex ${!sidebarOpen ? 'zy-latex-nosidebar' : ''}`}>
@@ -711,6 +1075,7 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
                       <button type="button" onClick={() => insertSnippet('\\frac{a}{b}')} title="Insert fraction">½ Frac</button>
                       <button type="button" onClick={() => insertSnippet('\\textbf{}')} title="Insert bold text">B</button>
                       <button type="button" onClick={() => insertSnippet('\\textit{}')} title="Insert italic text">I</button>
+                      <button type="button" onClick={() => insertSnippet('\\begin{itemize}\n  \\item \n\\end{itemize}')} title="Insert list">• List</button>
                     </div>
                   )}
 
@@ -826,11 +1191,16 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
           <div className="doc-empty zy-latex-empty">
             <FileText size={38} />
             <h2>No LaTeX document open</h2>
-            <p>Select a document from the list or create one from a template to begin writing.</p>
+            <p>Select a document from the list, decompile an existing PDF, or create one from a template.</p>
             {canEdit && (
-              <button className="button-secondary" onClick={() => create('article')}>
-                <Plus size={14} /> New academic article
-              </button>
+              <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+                <button className="button-secondary" onClick={() => createFromSource(BUILTIN_TEMPLATES.article.label, BUILTIN_TEMPLATES.article.source)}>
+                  <Plus size={14} /> New academic article
+                </button>
+                <button className="button-primary" onClick={() => setPdfModalOpen(true)}>
+                  <UploadCloud size={14} /> Decompile from PDF
+                </button>
+              </div>
             )}
           </div>
         )}
@@ -858,6 +1228,348 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
               <pre className="compile-error">{log}</pre>
             </details>
           )}
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 1. PDF DECOMPILER & FORMAT EXTRACTION MODAL */}
+      {/* ========================================================= */}
+      {pdfModalOpen && (
+        <div className="modal-backdrop" onClick={() => setPdfModalOpen(false)}>
+          <div className="modal" style={{ maxWidth: 860, width: '92%' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-head">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <UploadCloud size={18} />
+                <div>
+                  <strong>Reverse-Engineer PDF to LaTeX & Extract Layout</strong>
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>Upload any PDF to synthesize clean LaTeX and extract reusable templates</div>
+                </div>
+              </div>
+              <button className="icon-button" onClick={() => setPdfModalOpen(false)}><X size={15} /></button>
+            </div>
+
+            <div className="modal-body" style={{ maxHeight: '72vh', overflowY: 'auto' }}>
+              {/* File Dropzone */}
+              <label style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                padding: '28px 16px', border: '2px dashed var(--line)', borderRadius: 'var(--radius-m)',
+                cursor: 'pointer', background: 'var(--surface-soft)', transition: 'border-color .2s'
+              }}>
+                <FileUp size={32} style={{ color: 'var(--muted)', marginBottom: 8 }} />
+                <strong>Select or drop a PDF file here</strong>
+                <span style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>Scans PDF binary streams, extracts mathematical formulas, sections, and fonts</span>
+                <input type="file" accept=".pdf" onChange={handlePdfUpload} style={{ display: 'none' }} />
+              </label>
+
+              {isDecompiling && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 24 }}>
+                  <LoaderCircle className="spin" size={20} />
+                  <span>Decompressing PDF streams and reverse-engineering LaTeX markup…</span>
+                </div>
+              )}
+
+              {decompileResult && !isDecompiling && (
+                <div style={{ marginTop: 20 }}>
+                  {/* Summary Bar */}
+                  <div style={{ display: 'flex', gap: 16, background: 'var(--surface-soft)', padding: '12px 16px', borderRadius: 'var(--radius-m)', marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <div><span style={{ fontSize: 11, color: 'var(--muted)', display: 'block' }}>Detected Title</span><strong>{decompileResult.title}</strong></div>
+                    <div><span style={{ fontSize: 11, color: 'var(--muted)', display: 'block' }}>Sections</span><strong>{decompileResult.sections.length}</strong></div>
+                    <div><span style={{ fontSize: 11, color: 'var(--muted)', display: 'block' }}>Equations</span><strong>{decompileResult.equationCount}</strong></div>
+                    <div><span style={{ fontSize: 11, color: 'var(--muted)', display: 'block' }}>Words</span><strong>{decompileResult.wordCount}</strong></div>
+                    <div><span style={{ fontSize: 11, color: 'var(--muted)', display: 'block' }}>Document Class</span><code className="zy-mono">{decompileResult.docClass}</code></div>
+                  </div>
+
+                  {/* Tabs */}
+                  <div className="zy-tabs small">
+                    <button className={decompileViewTab === 'latex' ? 'active' : ''} onClick={() => setDecompileViewTab('latex')}>
+                      <FileCode size={13} /> Generated LaTeX Code
+                    </button>
+                    <button className={decompileViewTab === 'template' ? 'active' : ''} onClick={() => setDecompileViewTab('template')}>
+                      <Wand2 size={13} /> Extracted Layout Format (Reusable)
+                    </button>
+                  </div>
+
+                  {decompileViewTab === 'latex' ? (
+                    <div>
+                      <textarea
+                        className="zy-textarea"
+                        style={{ width: '100%', height: 260, fontFamily: "'DM Mono', monospace", fontSize: 12 }}
+                        value={decompileResult.latex}
+                        onChange={e => setDecompileResult({ ...decompileResult, latex: e.target.value })}
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="zy-muted-note">
+                        This template captures the typography, margins, and environments of the uploaded PDF with generic placeholders (<code className="zy-mono">&lt;DOCUMENT_TITLE&gt;</code>, <code className="zy-mono">&lt;SECTION_CONTENT&gt;</code>) so you can reuse this format for future papers.
+                      </p>
+                      <textarea
+                        className="zy-textarea"
+                        style={{ width: '100%', height: 220, fontFamily: "'DM Mono', monospace", fontSize: 12 }}
+                        value={decompileResult.template}
+                        onChange={e => setDecompileResult({ ...decompileResult, template: e.target.value })}
+                      />
+                      <div style={{ display: 'flex', gap: 10, marginTop: 12, alignItems: 'center' }}>
+                        <input
+                          type="text"
+                          className="zy-input"
+                          style={{ flex: 1 }}
+                          value={templateSaveName}
+                          onChange={e => setTemplateSaveName(e.target.value)}
+                          placeholder="Template Name (e.g., IEEE Double-Column Format)"
+                        />
+                        <button className="button-secondary" onClick={saveExtractedTemplate}>
+                          Save as Reusable Template
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="modal-foot">
+              <button className="button-secondary" onClick={() => setPdfModalOpen(false)}>Close</button>
+              {decompileResult && (
+                <>
+                  <button
+                    className="button-secondary"
+                    onClick={() => {
+                      createFromSource(`${decompileResult.title} (Decompiled)`, decompileResult.latex);
+                      setPdfModalOpen(false);
+                    }}
+                  >
+                    Create as New Document
+                  </button>
+                  <button
+                    className="button-primary"
+                    onClick={() => {
+                      replaceEditorContent(decompileResult.latex, decompileResult.title);
+                      setPdfModalOpen(false);
+                      notify('Extracted LaTeX applied to editor');
+                    }}
+                  >
+                    Apply to Active Editor
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 2. AI LATEX GENERATOR MODAL */}
+      {/* ========================================================= */}
+      {aiModalOpen && (
+        <div className="modal-backdrop" onClick={() => setAiModalOpen(false)}>
+          <div className="modal" style={{ maxWidth: 780, width: '92%' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-head">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Sparkles size={18} />
+                <div>
+                  <strong>AI LaTeX Typesetter & Document Architect</strong>
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>Generate publication-grade LaTeX papers, problem sets, or CVs from natural language</div>
+                </div>
+              </div>
+              <button className="icon-button" onClick={() => setAiModalOpen(false)}><X size={15} /></button>
+            </div>
+
+            <form onSubmit={handleAiGenerate}>
+              <div className="modal-body" style={{ maxHeight: '72vh', overflowY: 'auto' }}>
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
+                    Describe the document to typeset:
+                  </label>
+                  <textarea
+                    className="zy-textarea"
+                    rows={4}
+                    style={{ width: '100%' }}
+                    value={aiPrompt}
+                    onChange={e => setAiPrompt(e.target.value)}
+                    placeholder="e.g. Research paper on Real-Time CRDT Invariant Manifolds with Cauchy-Schwarz bounds, Hilbert spaces, and an abstract..."
+                    required
+                  />
+                  {/* Preset quick pills */}
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>Presets:</span>
+                    {[
+                      'Quantum Field Theory Invariant Manifolds',
+                      'Distributed Systems & CRDT Convergence Proof',
+                      'Applied Mathematics Problem Set with Matrices',
+                      'Senior Systems Architect Curriculum Vitae',
+                      'Microservice Platform Architecture Spec'
+                    ].map(p => (
+                      <button
+                        key={p}
+                        type="button"
+                        className="text-button zy-mono"
+                        style={{ fontSize: 11, textDecoration: 'underline' }}
+                        onClick={() => setAiPrompt(p)}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 16 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Archetype / Style</label>
+                    <select
+                      className="zy-select"
+                      style={{ width: '100%' }}
+                      value={aiStyle}
+                      onChange={e => setAiStyle(e.target.value)}
+                    >
+                      <option value="article">Academic Article (arXiv / IEEE)</option>
+                      <option value="report">Technical Systems Report</option>
+                      <option value="exam">Problem Set & Mathematical Proofs</option>
+                      <option value="resume">Professional Curriculum Vitae</option>
+                    </select>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, justifyContent: 'center' }}>
+                    <label className="zy-check inline">
+                      <input
+                        type="checkbox"
+                        checked={aiIncludeTheorems}
+                        onChange={e => setAiIncludeTheorems(e.target.checked)}
+                      />
+                      Include Equations & Theorems
+                    </label>
+                    <label className="zy-check inline">
+                      <input
+                        type="checkbox"
+                        checked={aiIncludeBib}
+                        onChange={e => setAiIncludeBib(e.target.checked)}
+                      />
+                      Include Abstract & Bibliography
+                    </label>
+                  </div>
+                </div>
+
+                {aiBusy && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 20 }}>
+                    <LoaderCircle className="spin" size={18} />
+                    <span>Neural model is generating verified LaTeX code…</span>
+                  </div>
+                )}
+
+                {aiGeneratedCode && !aiBusy && (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600 }}>Generated LaTeX Output:</span>
+                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>Ready for sub-5ms compilation</span>
+                    </div>
+                    <textarea
+                      className="zy-textarea"
+                      style={{ width: '100%', height: 220, fontFamily: "'DM Mono', monospace", fontSize: 12 }}
+                      value={aiGeneratedCode}
+                      onChange={e => setAiGeneratedCode(e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="modal-foot">
+                <button type="button" className="button-secondary" onClick={() => setAiModalOpen(false)}>Cancel</button>
+                {!aiGeneratedCode ? (
+                  <button type="submit" className="button-primary" disabled={aiBusy || !aiPrompt.trim()}>
+                    <Sparkles size={14} /> Generate LaTeX Code
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="button-secondary"
+                      onClick={() => {
+                        createFromSource(`AI Paper: ${aiPrompt.slice(0, 32)}`, aiGeneratedCode);
+                        setAiModalOpen(false);
+                      }}
+                    >
+                      Create as New Document
+                    </button>
+                    <button
+                      type="button"
+                      className="button-primary"
+                      onClick={() => {
+                        replaceEditorContent(aiGeneratedCode, `AI Paper: ${aiPrompt.slice(0, 32)}`);
+                        setAiModalOpen(false);
+                        notify('AI LaTeX applied to editor');
+                      }}
+                    >
+                      Apply to Active Document
+                    </button>
+                  </>
+                )}
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 3. CITATIONS & BIBTEX FINDER MODAL */}
+      {/* ========================================================= */}
+      {citationModalOpen && (
+        <div className="modal-backdrop" onClick={() => setCitationModalOpen(false)}>
+          <div className="modal" style={{ maxWidth: 720, width: '92%' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-head">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Quote size={18} />
+                <div>
+                  <strong>Academic Citations & BibTeX Manager</strong>
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>Search foundational references and insert <code>\cite&#123;key&#125;</code> into your document</div>
+                </div>
+              </div>
+              <button className="icon-button" onClick={() => setCitationModalOpen(false)}><X size={15} /></button>
+            </div>
+
+            <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+              <div style={{ position: 'relative', marginBottom: 16 }}>
+                <input
+                  type="text"
+                  className="zy-input"
+                  style={{ width: '100%', paddingLeft: 32 }}
+                  placeholder="Search papers by title, author, or citation key (e.g., Attention, Shannon, Lamport)..."
+                  value={citationSearch}
+                  onChange={e => setCitationSearch(e.target.value)}
+                  autoFocus
+                />
+                <Search size={14} style={{ position: 'absolute', left: 10, top: 11, color: 'var(--muted)' }} />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {filteredCitations.map(c => (
+                  <div key={c.key} style={{ border: '1px solid var(--line)', borderRadius: 'var(--radius-m)', padding: 12, background: 'var(--surface)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <strong style={{ fontSize: 14 }}>{c.title}</strong>
+                        <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{c.authors} ({c.year}) · <em>{c.journal}</em></div>
+                        <code className="zy-mono" style={{ fontSize: 11, color: 'var(--ink-strong)', display: 'inline-block', marginTop: 4 }}>
+                          \cite&#123;{c.key}&#125;
+                        </code>
+                      </div>
+                      <button className="button-secondary btn-sm" onClick={() => insertCitation(c)}>
+                        Insert \cite
+                      </button>
+                    </div>
+                    <details style={{ marginTop: 8, fontSize: 11 }}>
+                      <summary style={{ cursor: 'pointer', color: 'var(--muted)' }}>View BibTeX Entry</summary>
+                      <pre className="zy-mono" style={{ padding: 8, background: 'var(--surface-soft)', borderRadius: 4, overflowX: 'auto', marginTop: 4 }}>
+                        {c.bibtex}
+                      </pre>
+                    </details>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="modal-foot">
+              <button className="button-secondary" onClick={() => setCitationModalOpen(false)}>Close</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

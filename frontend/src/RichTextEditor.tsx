@@ -7,7 +7,7 @@ import Collaboration from '@tiptap/extension-collaboration';
 import CollaborationCaret from '@tiptap/extension-collaboration-caret';
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
-import { Bold, Code2, Columns3, Heading1, Heading2, Heading3, ImagePlus, Italic, Link2, List, ListChecks, ListOrdered, Minus, Quote, Redo2, Rows3, Strikethrough, Table2, Trash2, Underline, Undo2 } from 'lucide-react';
+import { Bold, Code2, Columns3, Heading1, Heading2, Heading3, ImagePlus, Info, Italic, Link2, List, ListChecks, ListOrdered, Minus, Quote, Redo2, Rows3, Sigma, Strikethrough, Table2, Trash2, Underline, Undo2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import './rich-text.css';
 
@@ -141,6 +141,8 @@ export default function RichTextEditor({ value, onChange, collab, onPeers, onFal
       <Tool editor={editor} label="Numbered list" active={editor.isActive('orderedList')} onClick={e => e.chain().focus().toggleOrderedList().run()}><ListOrdered size={15}/></Tool>
       <Tool editor={editor} label="Quote" active={editor.isActive('blockquote')} onClick={e => e.chain().focus().toggleBlockquote().run()}><Quote size={14}/></Tool>
       <Tool editor={editor} label="Code block" active={editor.isActive('codeBlock')} onClick={e => e.chain().focus().toggleCodeBlock().run()}><Code2 size={15}/></Tool>
+      <Tool editor={editor} label="Insert math / LaTeX formula" onClick={e => e.chain().focus().insertContent('<p>$$\\mathcal{L}(\\theta) = \\frac{1}{N}\\sum_{i=1}^N (y_i - f(x_i))^2 + \\lambda\\|\\theta\\|^2$$</p>').run()}><Sigma size={15}/></Tool>
+      <Tool editor={editor} label="Callout note" onClick={e => e.chain().focus().insertContent('<blockquote><p><strong>Note:</strong> Specify key architecture requirements and constraints here.</p></blockquote>').run()}><Info size={15}/></Tool>
       <Tool editor={editor} label="Divider" onClick={e => e.chain().focus().setHorizontalRule().run()}><Minus size={15}/></Tool>
       <i aria-hidden="true" />
       <Tool editor={editor} label="Link" active={editor.isActive('link')} onClick={setLink}><Link2 size={15}/></Tool>

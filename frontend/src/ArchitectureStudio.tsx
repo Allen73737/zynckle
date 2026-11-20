@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { Check, Copy, Download, LoaderCircle, Pencil, Plus, RotateCcw, Save, Sparkles, Square, Trash2, Workflow, X } from 'lucide-react';
+import { Check, Code2, Copy, Download, FileCode, LoaderCircle, Pencil, Plus, RotateCcw, Save, Sparkles, Square, Trash2, Workflow, X } from 'lucide-react';
 import Markdown, { markdownToHtml } from './Markdown';
 import AINav from './AINav';
 import { parseGraph } from './ArchitectureFlow';
@@ -38,6 +38,10 @@ export default function ArchitectureStudio({ projects, notify, canEdit }: { proj
   const [editText, setEditText] = useState('');
   const [guidance, setGuidance] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
+  const [scaffoldModalOpen, setScaffoldModalOpen] = useState(false);
+  const [scaffoldData, setScaffoldData] = useState<{ title: string; serviceName: string; files: Record<string, string> } | null>(null);
+  const [scaffoldBusy, setScaffoldBusy] = useState(false);
+  const [activeScaffoldFile, setActiveScaffoldFile] = useState<string>('');
   const abort = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -102,6 +106,25 @@ export default function ArchitectureStudio({ projects, notify, canEdit }: { proj
     catch (e) { setError(errorMessage(e)); }
   };
 
+  const triggerScaffold = async () => {
+    if (!design) return;
+    setScaffoldBusy(true);
+    setScaffoldModalOpen(true);
+    try {
+      const res = await api<{ title: string; serviceName: string; files: Record<string, string>; success: boolean }>('/api/ai/scaffold', {
+        body: { title: draft.title, description: draft.description, sections: design.sections }
+      });
+      setScaffoldData(res);
+      const firstFile = Object.keys(res.files || {})[0] || '';
+      setActiveScaffoldFile(firstFile);
+      notify('Starter stack scaffolded successfully');
+    } catch (e) {
+      notify(errorMessage(e, 'Scaffolding failed'));
+    } finally {
+      setScaffoldBusy(false);
+    }
+  };
+
   const toMarkdown = () => design ? [`# ${draft.title}`, '', `> ${draft.description.replace(/\n/g, '\n> ')}`, '', ...SECTIONS.filter(s => design.sections[s.key]).flatMap(s => [`## ${s.title}`, '', s.key === 'components' ? componentsMarkdown(design.sections[s.key].content) : design.sections[s.key].content, ''])].join('\n') : '';
   const exportMarkdown = () => { const url = URL.createObjectURL(new Blob([toMarkdown()], { type: 'text/markdown' })); const a = document.createElement('a'); a.href = url; a.download = `${draft.title.replace(/[^\w-]+/g, '-') || 'architecture'}.md`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 500); };
   const saveToDocs = async () => {
@@ -151,6 +174,7 @@ export default function ArchitectureStudio({ projects, notify, canEdit }: { proj
             <div className="zy-arch-actions">
               {running || queue.length ? <button className="button-secondary" onClick={() => { setQueue([]); abort.current?.abort(); }}><Square size={12}/> Stop</button>
                 : <button className="button-primary" disabled={!available || !canEdit} onClick={() => setQueue(SECTIONS.filter(s => !design.sections[s.key]).map(s => s.key))}><Sparkles size={14}/> {done ? 'Fill missing sections' : 'Generate all'}</button>}
+              <button className="button-secondary" onClick={triggerScaffold} disabled={!done} title="Scaffold Spring Boot, React, and OpenAPI boilerplate"><Code2 size={14}/> Scaffold Code</button>
               <button className="button-secondary" onClick={exportMarkdown} disabled={!done}><Download size={14}/> Markdown</button>
               <button className="button-secondary" onClick={saveToDocs} disabled={!done || !canEdit}><Save size={14}/> To Documents</button>
               <button className="icon-button danger" onClick={remove} aria-label="Delete design" title="Delete design" disabled={!canEdit}><Trash2 size={15}/></button>
@@ -186,6 +210,96 @@ export default function ArchitectureStudio({ projects, notify, canEdit }: { proj
         </>}
       </section>
     </div>
+
+    {scaffoldModalOpen && (
+      <div className="modal-backdrop" onClick={() => setScaffoldModalOpen(false)}>
+        <div className="modal" style={{ maxWidth: 880, width: '92%' }} onClick={e => e.stopPropagation()}>
+          <div className="modal-head">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Code2 size={18} />
+              <div>
+                <strong>Architecture Code & Stack Scaffolder</strong>
+                <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                  Auto-generated production boilerplate from system design specifications
+                </div>
+              </div>
+            </div>
+            <button className="icon-button" onClick={() => setScaffoldModalOpen(false)}><X size={15} /></button>
+          </div>
+
+          <div className="modal-body" style={{ maxHeight: '72vh', overflowY: 'auto' }}>
+            {scaffoldBusy && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 32 }}>
+                <LoaderCircle className="spin" size={20} />
+                <span>Synthesizing Spring Boot 3.4 REST endpoints, OpenAPI schemas, and React client…</span>
+              </div>
+            )}
+
+            {scaffoldData && !scaffoldBusy && (
+              <div>
+                {/* File Tabs */}
+                <div className="zy-tabs small" style={{ marginBottom: 12 }}>
+                  {Object.keys(scaffoldData.files).map(filename => (
+                    <button
+                      key={filename}
+                      className={activeScaffoldFile === filename ? 'active' : ''}
+                      onClick={() => setActiveScaffoldFile(filename)}
+                    >
+                      <FileCode size={13} /> {filename}
+                    </button>
+                  ))}
+                </div>
+
+                {activeScaffoldFile && (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <span className="zy-mono" style={{ fontSize: 12, fontWeight: 600 }}>{activeScaffoldFile}</span>
+                      <button
+                        className="button-secondary btn-sm"
+                        onClick={() => {
+                          navigator.clipboard.writeText(scaffoldData.files[activeScaffoldFile]);
+                          notify(`Copied ${activeScaffoldFile} to clipboard`);
+                        }}
+                      >
+                        <Copy size={12} /> Copy Code
+                      </button>
+                    </div>
+                    <pre style={{
+                      padding: 14, background: 'var(--surface-soft)', borderRadius: 'var(--radius-m)',
+                      fontFamily: "'DM Mono', monospace", fontSize: 12, overflowX: 'auto', maxHeight: 360,
+                      border: '1px solid var(--line)', whiteSpace: 'pre-wrap'
+                    }}>
+                      {scaffoldData.files[activeScaffoldFile]}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="modal-foot">
+            <button className="button-secondary" onClick={() => setScaffoldModalOpen(false)}>Close</button>
+            {scaffoldData && (
+              <button
+                className="button-primary"
+                onClick={() => {
+                  const blob = new Blob([JSON.stringify(scaffoldData.files, null, 2)], { type: 'application/json' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `${scaffoldData.serviceName}-scaffold.json`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  notify('Scaffold bundle downloaded');
+                }}
+              >
+                <Download size={14} /> Download Stack Bundle
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
   </>;
 }
 

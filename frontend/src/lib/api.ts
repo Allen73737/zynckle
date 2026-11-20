@@ -231,6 +231,60 @@ function handleLocalFallback<T>(path: string, { method = 'GET', body }: Options 
     return (list.find((x: any) => String(x.id) === String(prevId)) || list[0]) as T;
   }
 
+  // LaTeX Templates fallback
+  if (normPath === '/api/latex/templates') {
+    const raw = localStorage.getItem('zynckle-latex-custom-templates');
+    const list = raw ? JSON.parse(raw) : [];
+    if (method === 'POST') {
+      const item = {
+        id: b?.id || ('tmpl-' + Date.now()),
+        title: b?.title || 'Custom Template',
+        content: b?.content || '',
+        updated: new Date().toISOString()
+      };
+      const updated = [item, ...list.filter((x: any) => x.id !== item.id)];
+      localStorage.setItem('zynckle-latex-custom-templates', JSON.stringify(updated));
+      return item as T;
+    }
+    return list as T;
+  }
+  if (normPath.startsWith('/api/latex/templates/')) {
+    const tmplId = normPath.split('/')[4];
+    const raw = localStorage.getItem('zynckle-latex-custom-templates');
+    const list = raw ? JSON.parse(raw) : [];
+    if (method === 'DELETE') {
+      const updated = list.filter((x: any) => String(x.id) !== String(tmplId));
+      localStorage.setItem('zynckle-latex-custom-templates', JSON.stringify(updated));
+      return { deleted: true } as T;
+    }
+    return (list.find((x: any) => String(x.id) === String(tmplId)) || list[0]) as T;
+  }
+
+  // AI Scaffold fallback
+  if (normPath === '/api/ai/scaffold') {
+    const title = b?.title || 'ZynckleService';
+    const safeName = title.replace(/[^a-zA-Z0-9]/g, '') || 'ZynckleService';
+    return {
+      title,
+      serviceName: safeName,
+      files: {
+        [`${safeName}Controller.java`]: `package com.zynckle.generated;\n\nimport org.springframework.web.bind.annotation.*;\nimport java.util.List;\n\n@RestController\n@RequestMapping("/api/v1/${safeName.toLowerCase()}")\npublic class ${safeName}Controller {\n    @GetMapping\n    public List<String> list() { return List.of("Record 1", "Record 2"); }\n}\n`,
+        'openapi.yaml': `openapi: 3.0.3\ninfo:\n  title: ${title} API\n  version: 1.0.0\npaths:\n  /${safeName.toLowerCase()}:\n    get:\n      responses:\n        '200':\n          description: Success\n`,
+        [`use${safeName}Resource.ts`]: `import { useState, useEffect } from 'react';\n\nexport function use${safeName}Resource() {\n  const [data, setData] = useState([]);\n  return { data };\n}\n`,
+        'docker-compose.yml': `version: '3.8'\nservices:\n  backend:\n    image: openjdk:17-slim\n    ports: ["8080:8080"]\n  postgres:\n    image: postgres:16-alpine\n    ports: ["5432:5432"]\n`
+      },
+      success: true
+    } as T;
+  }
+
+  // AI Generate LaTeX fallback
+  if (normPath === '/api/latex/ai-generate') {
+    const prompt = b?.prompt || 'Research Paper';
+    const cleanTitle = prompt.replace(/[%$#&_{}\\]/g, '');
+    const latex = `\\documentclass[11pt]{article}\n\\usepackage[utf8]{inputenc}\n\\usepackage{amsmath,amssymb,amsfonts,graphicx,hyperref,geometry}\n\\geometry{a4paper, margin=1in}\n\n\\title{\\textbf{${cleanTitle}}}\n\\author{Dr. Principal Investigator \\and AI Research Group}\n\\date{\\today}\n\n\\begin{document}\n\\maketitle\n\n\\begin{abstract}\nThis paper outlines the mathematical foundations and architectural verification of ${cleanTitle}.\n\\end{abstract}\n\n\\section{Introduction}\nModern high-assurance workspaces demand deterministic execution and zero-drift state convergence.\n\n\\section{Theoretical Formulation}\nConsider the energy minimization functional:\n\\begin{equation}\n  \\mathcal{E}[u] = \\int_\\Omega \\left( \\frac{1}{2} |\\nabla u|^2 + V(u) \\right) dx\n\\end{equation}\n\n\\section{Conclusion}\nThe analytical bounds demonstrate asymptotic stability.\n\n\\end{document}\n`;
+    return { latex, title: cleanTitle, style: b?.style || 'article', success: true } as T;
+  }
+
   return {} as T;
 }
 

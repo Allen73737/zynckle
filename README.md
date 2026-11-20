@@ -105,6 +105,9 @@ Traditional LaTeX tools depend on heavy external OS binaries (`pdflatex`, `xelat
 
 Zynckle features the **Fast TeX Vector Engine** implemented natively in both Spring Boot (Java 17) and client-side TypeScript:
 - **Instant Compilation (< 5ms)**: Generates compliant PDF 1.4 binary documents in sub-5ms with zero process blocking.
+- **PDF-to-LaTeX Reverse Engineering & Format Extraction**: Upload any PDF to decompile text, math equations, and section hierarchies into structured LaTeX, extracting its layout as a reusable template.
+- **Contextual AI LaTeX Typesetter**: Natural-language generation of complete academic papers, problem sets, CVs, and technical specifications with formula synthesis.
+- **BibTeX Citation Finder & Manager**: In-editor reference search and 1-click citation autocompletion (`\cite{...}`).
 - **In-Flight Cancellation**: Features `AbortController` cancellation so rapid typing never queues stalled builds.
 - **Zero-Dead-End Client Fallback**: Integrated browser-side compilation (`buildFallbackPdf`) guarantees that documents compile even if the backend is offline.
 - **Full-Window Expandable Workspace**: Toggle full-window focus mode (`Ctrl + Shift + F`), collapse sidebars, or expand the PDF preview canvas with dynamic zoom scaling (50% to 200%).
@@ -250,6 +253,7 @@ Zynckle is designed from the ground up for power users who refuse to leave the k
 | :--- | :--- |
 | <kbd>⌘</kbd> / <kbd>Ctrl</kbd> + <kbd>K</kbd> | Toggle Global Command Palette &amp; Workspace Search |
 | <kbd>⌘</kbd> / <kbd>Ctrl</kbd> + <kbd>J</kbd> | Summon Workspace AI Assistant |
+| <kbd>⌘</kbd> / <kbd>Ctrl</kbd> + <kbd>E</kbd> | Toggle Global Quick Scratchpad HUD |
 | <kbd>C</kbd> | Launch Natural Language Quick Capture modal |
 | <kbd>?</kbd> | Open Global Keyboard Shortcut Sheet |
 | <kbd>/</kbd> | Instant search focus |
