@@ -1,8 +1,6 @@
 <div align="center">
 
-<p align="center">
-  <img src="assets/hero-banner.svg" alt="Zynckle Hero Banner" width="100%" />
-</p>
+[![Zynckle Hero Banner](./assets/hero-banner.svg)](https://github.com/Allen73737/zynckle)
 
 <br />
 
@@ -10,16 +8,17 @@
 
 **The Unified Collaborative Workspace &amp; Research Operating System**
 
-*One unified platform. Everything connected.* Plan projects, collaborate in real time, typeset mathematical LaTeX, inspect source code, preview live sandboxed websites, manage cloud assets, and orchestrate workspace-aware AI — without ever context-switching.
+*One unified platform. Everything connected.* Plan projects, collaborate in real time with Yjs CRDTs, typeset mathematical LaTeX in sub-5ms, test responsive multi-device viewports, inspect source trees, manage cloud assets, and orchestrate workspace-aware neural AI — powered by a Spring Boot 17 Java Enterprise engine.
 
 <br />
 
-[![Node Version](https://img.shields.io/badge/Node.js-20%2B-black?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.1-black?style=for-the-badge&logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
+[![Java 17](https://img.shields.io/badge/Java-17%20LTS-black?style=for-the-badge&logo=openjdk&logoColor=white)](https://adoptium.net/)
 [![React Version](https://img.shields.io/badge/React-18.3-black?style=for-the-badge&logo=react&logoColor=white)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-black?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Vite](https://img.shields.io/badge/Vite-6.4-black?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![Yjs CRDT](https://img.shields.io/badge/Realtime-Yjs%20CRDTs-black?style=for-the-badge&logo=socket.dot.io&logoColor=white)](https://yjs.dev/)
-[![TeX Engine](https://img.shields.io/badge/Compiler-Fast%20TeX%20Vector-black?style=for-the-badge&logo=latex&logoColor=white)](#latex-studio--vector-pdf-engine)
+[![Fast TeX](https://img.shields.io/badge/Compiler-Fast%20TeX%20Vector-black?style=for-the-badge&logo=latex&logoColor=white)](#latex-studio--vector-pdf-engine)
 [![Security](https://img.shields.io/badge/Security-Zero--Trust%20Scrypt-black?style=for-the-badge&logo=auth0&logoColor=white)](#zero-trust-security-model)
 [![License](https://img.shields.io/badge/License-MIT-black?style=for-the-badge)](LICENSE)
 
@@ -27,11 +26,12 @@
 
 [**Key Features**](#key-capabilities) &nbsp;•&nbsp;
 [**Architecture**](#architecture-topology) &nbsp;•&nbsp;
+[**Spring Boot Backend**](#spring-boot-34-enterprise-backend) &nbsp;•&nbsp;
 [**LaTeX Engine**](#latex-studio--vector-pdf-engine) &nbsp;•&nbsp;
+[**Responsive Previews**](#responsive-viewport-lab--sandboxed-previews) &nbsp;•&nbsp;
 [**Quick Capture**](#natural-language-quick-capture) &nbsp;•&nbsp;
-[**Keyboard Shortcuts**](#complete-keyboard-shortcuts) &nbsp;•&nbsp;
-[**Quick Start**](#getting-started) &nbsp;•&nbsp;
-[**Security Model**](#zero-trust-security-model)
+[**API Reference**](#comprehensive-rest-api-reference) &nbsp;•&nbsp;
+[**Quick Start**](#getting-started)
 
 </div>
 
@@ -39,48 +39,80 @@
 
 ## Overview
 
-Modern engineering teams, researchers, and technical writers are forced to juggle fragmented tools: Notion for documents, Overleaf for LaTeX, Linear for issue tracking, VS Code for repository browsing, and ChatGPT for AI workflows. Context is scattered, sync is brittle, and latency is high.
+Modern software teams, researchers, and technical writers are forced to juggle fragmented tools: Notion for notes, Overleaf for LaTeX, Linear for sprint tracking, VS Code for repository browsing, BrowserStack for responsive testing, and ChatGPT for AI workflows. Context is scattered, synchronization is brittle, and latency is high.
 
-**Zynckle** eliminates tool fragmentation by converging technical workflows into a single ultra-responsive, local-first platform built on pitch-black minimalism and sub-millisecond responsiveness.
+**Zynckle** eliminates tool fragmentation by converging technical workflows into a single ultra-responsive platform built on pitch-black minimalism, local-first reliability, and sub-millisecond response times.
 
 ```
-frontend/   React 18 · TypeScript · Vite 6 · Tiptap (ProseMirror) + Yjs · CodeMirror 6 · React Flow · Mermaid
-backend/    Node.js Zero-Dependency Core · WebSockets (ws) · Yjs CRDT Sync Server · Atomic Journal Store
-            backend/src = Spring Boot / PostgreSQL reference schema with Flyway V1-V3 migrations
+frontend/   React 18 · TypeScript · Vite 6 · Tiptap (ProseMirror) + Yjs · CodeMirror 6 · Tailwind CSS
+backend/    Spring Boot 3.4.1 (Java 17 LTS) · Spring Security 6 · Spring Data JPA · H2 / PostgreSQL
+            Maven Wrapper (./mvnw.cmd & ./mvnw) · Flyway V1-V3 · Pure Vector LaTeX Compiler (<5ms)
 ```
 
 ---
 
 ## Architecture Topology
 
-Zynckle is engineered for zero-latency execution. Instead of relying on bloated monolithic frameworks, its edge gateway utilizes lightweight streaming protocols and an integrated vector compilation pipeline.
+Zynckle is engineered for zero-latency execution. Instead of relying on bloated microservice sprawl, its architecture pairs a local-first client hydration mesh with an enterprise Spring Boot 17 Java service mesh and an integrated vector compilation pipeline.
 
 <div align="center">
-  <img src="assets/architecture.svg" alt="Zynckle Architecture Topology" width="100%" />
+
+[![Zynckle Architecture Topology](./assets/architecture.svg)](https://github.com/Allen73737/zynckle)
+
 </div>
 
 ### System Layers
 
 | Layer | Technologies | Responsibilities |
 | :--- | :--- | :--- |
-| **01. Client Applications** | React 18, Vite 6, Tiptap, CodeMirror 6, React Flow | Local-first optimistic UI, dual-engine fallback store, split-pane IDE, zero-flicker state hydration. |
-| **02. Realtime Edge Gateway** | Node.js native HTTP/WebSocket, `ws`, Scrypt, CSP | Token-bucket rate limiting, opaque session verification, SSRF blocking, sub-millisecond multiplexed message dispatch. |
-| **03. Core Processing Mesh** | Fast TeX Pure-JS Compiler, Yjs Sync Server, AI Mesh, S3/R2 SigV4 | Instant PDF 1.4 vector generation, conflict-free document merges, multi-model AI streaming (Groq, Gemini, OpenRouter), and streaming signed uploads. |
+| **01. Client Applications** | React 18, Vite 6, Tiptap, CodeMirror 6, React Flow | Local-first optimistic UI, zero-downtime offline store fallback, full-window canvas expansion, multi-viewport responsive matrix. |
+| **02. Enterprise API Mesh** | Spring Boot 3.4.1, Java 17 LTS, Spring Security 6 | Stateless session validation, token verification, unrestricted development CORS (`localhost:5173`), actuator health metrics. |
+| **03. Core Processing Mesh** | Fast TeX Java Vector Engine, Yjs CRDT Sync, AI Mesh | Sub-5ms binary PDF 1.4 vector generation, conflict-free document merges, multi-model AI streaming (Groq, Gemini, OpenRouter). |
+| **04. Persistence Layer** | Embedded H2 (PostgreSQL mode), HikariCP, Flyway | Embedded relational database (`jdbc:h2:file:./data/zynckle`), automatic schema migration, zero external database setup required. |
+
+---
+
+## Spring Boot 3.4 Enterprise Backend
+
+The backend is built with **Spring Boot 3.4.1** running on **Java 17 LTS (OpenJDK)**. It incorporates a self-contained Apache Maven Wrapper, enabling builds on any developer machine without requiring pre-installed system Maven binaries or administrator rights.
+
+<div align="center">
+
+[![Spring Boot Architecture](./assets/spring-boot-architecture.svg)](https://github.com/Allen73737/zynckle)
+
+</div>
+
+### Key Architectural Capabilities
+
+1. **Embedded Zero-Config Relational Persistence**:
+   - Pre-configured with an embedded H2 database operating in PostgreSQL compatibility mode (`jdbc:h2:file:./data/zynckle;MODE=PostgreSQL`).
+   - Automated schema bootstrapping via `DatabaseInitializer.java`, pre-seeding default demo workspaces, sample projects, tasks, and architectural documents on first run.
+   - Production-ready with Flyway migrations (`V1__initial_schema.sql`, `V2__workspace_features.sql`, `V3__platform_modules.sql`).
+
+2. **Self-Contained Maven Wrapper**:
+   - Run immediately with `./mvnw.cmd` (Windows) or `./mvnw` (Linux/macOS).
+   - Dependencies and plugins are cached in `backend/m2-repo/`, avoiding global permission collisions.
+
+3. **Sub-5ms Native Java LaTeX Compiler**:
+   - `LatexPdfCompiler.java` parses LaTeX source code directly into valid PDF 1.4 byte streams.
+   - Eliminates 20+ second OS process spawns, shell escapes, and TeX Live binary dependencies.
 
 ---
 
 ## LaTeX Studio & Vector PDF Engine
 
-Traditional LaTeX suites rely on external OS toolchains (`pdflatex`, `xelatex`) that spawn heavy OS processes, encounter permission errors, and freeze user interfaces for 20+ seconds.
+Traditional LaTeX tools depend on heavy external OS binaries (`pdflatex`, `xelatex`) that spawn isolated processes, hit permission walls, and freeze user interfaces for 15–30 seconds.
 
-Zynckle introduces the **Fast TeX Pure-JS Vector Engine**:
-- **Instant Compilation (< 5ms)**: Generates compliant PDF 1.4 binary documents in pure JavaScript with zero OS process spawning and zero registry dependencies.
+Zynckle features the **Fast TeX Vector Engine** implemented natively in both Spring Boot (Java 17) and client-side TypeScript:
+- **Instant Compilation (< 5ms)**: Generates compliant PDF 1.4 binary documents in sub-5ms with zero process blocking.
 - **In-Flight Cancellation**: Features `AbortController` cancellation so rapid typing never queues stalled builds.
-- **Zero-Dead-End Client Fallback**: Integrated browser-side compilation (`buildFallbackPdf`) guarantees that documents compile even if the server is offline or unreachable.
+- **Zero-Dead-End Client Fallback**: Integrated browser-side compilation (`buildFallbackPdf`) guarantees that documents compile even if the backend is offline.
 - **Full-Window Expandable Workspace**: Toggle full-window focus mode (`Ctrl + Shift + F`), collapse sidebars, or expand the PDF preview canvas with dynamic zoom scaling (50% to 200%).
 
 <div align="center">
-  <img src="assets/latex-preview.svg" alt="Zynckle LaTeX Studio" width="100%" />
+
+[![Zynckle LaTeX Studio](./assets/latex-preview.svg)](https://github.com/Allen73737/zynckle)
+
 </div>
 
 ```tex
@@ -99,12 +131,28 @@ Zynckle introduces the **Fast TeX Pure-JS Vector Engine**:
 
 ---
 
+## Responsive Viewport Lab & Sandboxed Previews
+
+Zynckle provides an integrated testing lab for responsive websites and web applications directly inside your workspace:
+
+- **Multi-Device Viewport Matrix**: Test any URL or local web server simultaneously across standard device viewports:
+  - **Desktop**: 1440 × 900 px
+  - **Laptop**: 1024 × 768 px
+  - **Tablet**: 768 × 1024 px (with portrait / landscape rotation)
+  - **Mobile**: 375 × 667 px
+- **Live Sandboxed Previews**: Web pages containing `index.html` are rendered on an opaque, isolated sandboxed origin with strict Content-Security-Policy headers—preventing untrusted scripts from accessing workspace cookies or storage.
+- **Responsive Reachability Check**: Server-side endpoint (`/api/previews/check`) verifies X-Frame-Options and CORS headers before rendering, with intelligent proxy fallback.
+
+---
+
 ## Natural Language Quick Capture
 
 Press <kbd>C</kbd> from anywhere in the workspace to launch the **Quick Capture HUD**. Zynckle's real-time parser decodes dates, priorities, assignees, projects, and workflow stages into structured tokens as you type:
 
 <div align="center">
-  <img src="assets/quick-capture.svg" alt="Zynckle Natural Language Quick Capture" width="100%" />
+
+[![Zynckle Natural Language Quick Capture](./assets/quick-capture.svg)](https://github.com/Allen73737/zynckle)
+
 </div>
 
 ### Token Syntax Reference
@@ -136,19 +184,13 @@ Press <kbd>C</kbd> from anywhere in the workspace to launch the **Quick Capture 
 - **Workspace Pulse**: Visualizes a 14-day activity velocity sparkline tracking completed milestones, opened reviews, and team commits.
 - **Dual Perspective**: Toggle between **"My Desk"** (personal obligations) and **"The Newsroom"** (workspace-wide momentum).
 
-### 3. Code Studio & Sandboxed Previews
-- **Syntax-Highlighted Tree Browser**: Inspect full codebases with line numbers, full-text fuzzy code search, and instant jumping.
-- **One-Click GitHub Import**: Pull public repositories directly into your project with zero local git overhead.
-- **Sandboxed Static Previews**: Projects containing `index.html` are rendered on an opaque, isolated sandboxed origin with strict Content-Security-Policy headers—preventing untrusted scripts from accessing workspace cookies or storage.
-- **Responsive Viewport Lab**: Test web layouts across Desktop (1440px), Laptop (1024px), Tablet (768px), and Mobile (375px) viewports with orientation flipping.
-
-### 4. Workspace-Aware Contextual AI
+### 3. Workspace-Aware Contextual AI
 - **Provider Agnostic**: Seamlessly stream intelligence via **Groq** (Llama 3.3 70B default), **Google Gemini** (Gemini 2.0 Flash / Pro), or **OpenRouter**.
 - **Contextual Knowledge Graph**: Selectively feed active project tasks, live document content, or codebase files into AI prompts.
 - **Architecture Designer**: Generates comprehensive 12-section technical architectural specifications accompanied by interactive **Mermaid diagrams** and **React Flow** component graphs.
 - **Docs & Planning Workshop**: Automatically produces Software Requirements Specifications (SRS), API documentation, and database schemas with explicit source citations.
 
-### 5. Drive & Object Storage
+### 4. Drive & Cloud Storage
 - **Hybrid Storage Driver**: Stream files directly to local disk or deploy to any S3-compatible cloud object store (Cloudflare R2, AWS S3, MinIO) via AWS Signature Version 4 (SigV4).
 - **Zero Binary Bloat**: Large files bypass database tables completely; only cryptographically signed metadata records are stored in the index.
 - **In-Browser Previews**: Built-in media streaming for PDF documents, vector SVGs, audio, video, and high-resolution imagery.
@@ -159,13 +201,43 @@ Press <kbd>C</kbd> from anywhere in the workspace to launch the **Quick Capture 
 
 | Feature Capability | Zynckle | Notion | Overleaf | Linear | Obsidian |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Pure-JS Fast TeX Engine (< 5ms)** | **Yes** | No | No (Slow OS TeX) | No | No |
+| **Pure-Vector Fast TeX Engine (< 5ms)** | **Yes** | No | No (Slow OS TeX) | No | No |
+| **Spring Boot 3.4 + Java 17 Enterprise** | **Yes** | No | No | No | No |
 | **Realtime CRDT Co-Editing (Yjs)** | **Yes** | Yes (Proprietary) | Yes | No | No |
 | **Natural Language Task Capture (`C`)** | **Yes** | No | No | Partial | No |
-| **Interactive Code IDE & Sandboxed Previews** | **Yes** | No | No | No | No |
+| **Multi-Device Responsive Viewport Matrix** | **Yes** | No | No | No | No |
 | **Context-Aware Streaming AI (RAG)** | **Yes** | Paid Addon | No | No | Plugin |
 | **Zero-Trust Security & SSRF Protection** | **Yes** | Cloud Only | Cloud Only | Cloud Only | Local Only |
 | **Self-Hostable Local-First Architecture** | **Yes** | No | Partial | No | Yes |
+
+---
+
+## Comprehensive REST API Reference
+
+The Spring Boot backend exposes a clean, unified REST interface under `/api/*`:
+
+| Route | Method | Description |
+| :--- | :--- | :--- |
+| `/api/health` | `GET` | System health, runtime info, and persistence status |
+| `/api/auth/register` | `POST` | Account registration and initial workspace creation |
+| `/api/auth/login` | `POST` | Email and password authentication session creation |
+| `/api/auth/me` | `GET` | Active session profile, workspace role, and preferences |
+| `/api/auth/profile` | `PATCH` | Update user name, title, bio, or email |
+| `/api/workspaces` | `GET`, `POST` | List user workspaces or create a new workspace |
+| `/api/workspaces/{id}/activate` | `POST` | Switch active workspace context |
+| `/api/projects` | `GET`, `POST` | List and create workspace projects |
+| `/api/projects/{id}/tasks` | `GET`, `POST` | Project-filtered task management |
+| `/api/tasks` | `GET` | Workspace master task list |
+| `/api/tasks/{id}` | `PATCH`, `DELETE` | Update task priority, status, or delete |
+| `/api/tasks/{id}/comments` | `GET`, `POST` | Task discussion threads and comments |
+| `/api/documents` | `GET`, `POST` | Collaborative document store |
+| `/api/latex/status` | `GET` | LaTeX compiler engine readiness and version |
+| `/api/latex/compile` | `POST` | Instant compile LaTeX source to binary PDF stream |
+| `/api/previews` | `GET`, `POST` | Responsive website preview registry |
+| `/api/previews/check` | `GET` | Target URL reachability and iframe header check |
+| `/api/ai/status` | `GET` | Active AI provider configuration and model matrix |
+| `/api/storage/usage` | `GET` | Workspace storage quota telemetry |
+| `/api/activity` | `GET` | Global workspace audit trail and activity feed |
 
 ---
 
@@ -199,7 +271,7 @@ Zynckle is designed from the ground up for power users who refuse to leave the k
 ### LaTeX Studio Hotkeys
 | Keybinding | Action |
 | :--- | :--- |
-| <kbd>Mod</kbd> + <kbd>Enter</kbd> | Trigger instant built-in compilation |
+| <kbd>Mod</kbd> + <kbd>Enter</kbd> | Trigger instant built-in compilation (<5ms) |
 | <kbd>Mod</kbd> + <kbd>S</kbd> | Create an explicit document revision snapshot |
 | <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd> | Toggle Full-Window Studio Canvas |
 
@@ -224,6 +296,7 @@ Zynckle treats user privacy and data sovereignty as non-negotiable architectural
 ## Getting Started
 
 ### Prerequisites
+- **Java**: OpenJDK 17 LTS or higher
 - **Node.js**: Version `20.0.0` or higher
 - **Package Manager**: `npm` (bundled with Node.js)
 - **Optional**: An API key for AI features (`GROQ_API_KEY`, `GEMINI_API_KEY`, or `OPENROUTER_API_KEY`).
@@ -235,23 +308,22 @@ Zynckle treats user privacy and data sovereignty as non-negotiable architectural
 git clone https://github.com/Allen73737/zynckle.git
 cd zynckle
 
-# 2. Copy the environment template
-cp .env.example .env
-
-# 3. Install backend dependencies and launch API server
+# 2. Launch the Spring Boot 3.4 Enterprise Backend
 cd backend
-npm install
-npm start
-# -> Backend listening on http://127.0.0.1:8080
+# Windows:
+.\mvnw.cmd spring-boot:run
+# Linux / macOS:
+./mvnw spring-boot:run
+# -> Spring Boot running on http://127.0.0.1:8080
 
-# 4. In a separate terminal, launch the frontend
+# 3. In a separate terminal, launch the React Frontend
 cd ../frontend
 npm install
 npm run dev
 # -> Frontend running on http://localhost:5173
 ```
 
-Visit [http://localhost:5173](http://localhost:5173) in your browser to create your initial workspace account.
+Visit [http://localhost:5173](http://localhost:5173) in your browser. All API requests are automatically reverse-proxied to the Spring Boot backend on port 8080.
 
 ---
 
@@ -261,36 +333,15 @@ All runtime variables are documented in `.env.example`. Key operational settings
 
 | Variable | Default Value | Description |
 | :--- | :--- | :--- |
-| `ZYNCKLE_PORT` | `8080` | Port on which the Node backend listens |
-| `ZYNCKLE_SECRET` | *(Random)* | Secret key used for session authentication cookies |
-| `LATEX_COMPILER` | `built-in` | `built-in` for instant 5ms vector TeX; or custom binary path |
+| `PORT` | `8080` | Port on which the Spring Boot backend listens |
+| `ZYNCKLE_FRONTEND_ORIGIN`| `http://localhost:5173` | CORS allowed origin for frontend client |
+| `DATABASE_URL` | `jdbc:h2:file:./data/zynckle` | JDBC database connection string |
 | `AI_PROVIDER` | `groq` | Active AI provider: `groq`, `gemini`, or `openrouter` |
 | `GROQ_API_KEY` | `""` | API key for Groq Cloud (Llama 3.3 70B Versatile) |
 | `GEMINI_API_KEY` | `""` | API key for Google Gemini (Gemini 2.0 Flash) |
 | `OPENROUTER_API_KEY` | `""` | API key for OpenRouter models |
 | `WORKSPACE_QUOTA_MB`| `1024` | Storage ceiling allocated per workspace |
 | `MAX_UPLOAD_MB` | `25` | Maximum single-file upload size |
-| `AUTH_RATE_PER_MINUTE` | `12` | Throttling bucket for authentication attempts |
-| `LATEX_RATE_PER_MINUTE` | `120` | Compilation requests permitted per client minute |
-
----
-
-## Verification & Test Suite
-
-The repository includes a comprehensive automated test harness covering API security, RBAC enforcement, and data isolation.
-
-```bash
-# Execute integration test suites (12 comprehensive suites)
-cd backend
-npm test
-
-# Run strict TypeScript static analysis
-cd ../frontend
-npx tsc --noEmit
-
-# Compile production bundle with code-splitting
-npm run build
-```
 
 ---
 

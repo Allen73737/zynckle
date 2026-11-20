@@ -1,184 +1,160 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 360" width="1200" height="360" fill="none">
   <defs>
-    <!-- Dark Gradients -->
-    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#050507" />
+    <!-- Background Gradients -->
+    <linearGradient id="zk-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#000000" />
       <stop offset="50%" stop-color="#09090b" />
-      <stop offset="100%" stop-color="#020203" />
+      <stop offset="100%" stop-color="#000000" />
     </linearGradient>
 
-    <linearGradient id="card-grad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#18181b" stop-opacity="0.8" />
-      <stop offset="100%" stop-color="#0e0e11" stop-opacity="0.9" />
+    <linearGradient id="zk-card-bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#18181b" stop-opacity="0.9" />
+      <stop offset="100%" stop-color="#09090b" stop-opacity="0.95" />
     </linearGradient>
 
-    <linearGradient id="border-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#3f3f46" stop-opacity="0.8" />
+    <linearGradient id="zk-border-glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#52525b" stop-opacity="0.6" />
       <stop offset="50%" stop-color="#27272a" stop-opacity="0.3" />
-      <stop offset="100%" stop-color="#52525b" stop-opacity="0.6" />
+      <stop offset="100%" stop-color="#71717a" stop-opacity="0.6" />
     </linearGradient>
 
-    <!-- Glowing Accent -->
-    <linearGradient id="glow-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+    <!-- Scanner Beam Gradient -->
+    <linearGradient id="zk-scan-beam" x1="0%" y1="0%" x2="100%" y2="0%">
       <stop offset="0%" stop-color="#ffffff" stop-opacity="0" />
-      <stop offset="50%" stop-color="#ffffff" stop-opacity="0.9" />
+      <stop offset="25%" stop-color="#ffffff" stop-opacity="0.4" />
+      <stop offset="50%" stop-color="#ffffff" stop-opacity="0.8" />
+      <stop offset="75%" stop-color="#ffffff" stop-opacity="0.4" />
       <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
     </linearGradient>
 
-    <radialGradient id="center-glow" cx="50%" cy="30%" r="50%">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.08" />
-      <stop offset="40%" stop-color="#71717a" stop-opacity="0.03" />
+    <!-- Center Radial Glow -->
+    <radialGradient id="zk-center-glow" cx="50%" cy="40%" r="55%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.07" />
+      <stop offset="45%" stop-color="#a1a1aa" stop-opacity="0.02" />
       <stop offset="100%" stop-color="#000000" stop-opacity="0" />
     </radialGradient>
 
-    <!-- Subtle Grid Pattern -->
-    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#27272a" stroke-width="0.5" stroke-opacity="0.4" />
-      <circle cx="40" cy="40" r="0.8" fill="#52525b" fill-opacity="0.4" />
+    <!-- Precision Grid Pattern -->
+    <pattern id="zk-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#27272a" stroke-width="0.6" stroke-opacity="0.5" />
+      <circle cx="40" cy="40" r="0.9" fill="#52525b" fill-opacity="0.5" />
     </pattern>
-
-    <style>
-      @keyframes pulse-dot {
-        0%, 100% { opacity: 1; transform: scale(1); }
-        50% { opacity: 0.3; transform: scale(0.85); }
-      }
-      @keyframes scanline {
-        0% { transform: translateY(-40px); opacity: 0; }
-        15% { opacity: 0.6; }
-        85% { opacity: 0.6; }
-        100% { transform: translateY(380px); opacity: 0; }
-      }
-      @keyframes shimmer-sweep {
-        0% { transform: translateX(-1200px); }
-        100% { transform: translateX(1200px); }
-      }
-      @keyframes float-gentle {
-        0%, 100% { transform: translateY(0px); }
-        50% { transform: translateY(-3px); }
-      }
-      .scanline-beam {
-        animation: scanline 8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-      }
-      .beacon-pulse {
-        animation: pulse-dot 2.4s ease-in-out infinite;
-        transform-origin: 43px 36px;
-      }
-      .shimmer-layer {
-        animation: shimmer-sweep 6s linear infinite;
-      }
-      .floating-logo {
-        animation: float-gentle 4s ease-in-out infinite;
-      }
-      .mono-text {
-        font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
-      }
-      .sans-text {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      }
-    </style>
   </defs>
 
-  <!-- Background Base -->
-  <rect width="1200" height="360" rx="16" fill="url(#bg-grad)" stroke="#27272a" stroke-width="1.5" />
-  <rect width="1200" height="360" rx="16" fill="url(#grid)" />
-  <rect width="1200" height="360" rx="16" fill="url(#center-glow)" />
+  <!-- Base Canvas -->
+  <rect width="1200" height="360" rx="16" fill="url(#zk-bg)" stroke="#27272a" stroke-width="1.5" />
+  <rect width="1200" height="360" rx="16" fill="url(#zk-grid)" />
+  <rect width="1200" height="360" rx="16" fill="url(#zk-center-glow)" />
 
-  <!-- Animated Scanner Beam -->
-  <g class="scanline-beam" pointer-events="none">
-    <line x1="0" y1="0" x2="1200" y2="0" stroke="url(#glow-grad)" stroke-width="1.5" />
-    <rect x="0" y="0" width="1200" height="18" fill="url(#glow-grad)" opacity="0.04" />
+  <!-- Animated Scanner Laser (SMIL - 100% GitHub Camo Compatible) -->
+  <g>
+    <line x1="0" y1="0" x2="1200" y2="0" stroke="url(#zk-scan-beam)" stroke-width="1.5">
+      <animate attributeName="y1" values="-10;370;-10" dur="8s" repeatCount="indefinite" />
+      <animate attributeName="y2" values="-10;370;-10" dur="8s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="0;0.7;0.7;0" dur="8s" repeatCount="indefinite" />
+    </line>
+    <rect x="0" y="0" width="1200" height="24" fill="url(#zk-scan-beam)" opacity="0.03">
+      <animate attributeName="y" values="-24;356;-24" dur="8s" repeatCount="indefinite" />
+    </rect>
   </g>
 
-  <!-- Top System Status Banner -->
-  <g transform="translate(32, 24)">
-    <rect width="390" height="26" rx="13" fill="#18181b" stroke="#27272a" stroke-width="1" />
-    <circle cx="14" cy="13" r="4.5" fill="#10b981" class="beacon-pulse" />
-    <circle cx="14" cy="13" r="8" fill="#10b981" opacity="0.25" class="beacon-pulse" />
-    <text x="28" y="17" fill="#a1a1aa" font-size="10.5" font-weight="600" letter-spacing="1" class="mono-text">
-      SYSTEM STATUS: ONLINE <tspan fill="#52525b">|</tspan> <tspan fill="#e4e4e7">FAST TeX ACTIVE</tspan> <tspan fill="#52525b">|</tspan> <tspan fill="#10b981">Yjs CRDT</tspan>
+  <!-- Top System Badge (Left) -->
+  <g transform="translate(32, 22)">
+    <rect width="440" height="28" rx="14" fill="#09090b" stroke="#27272a" stroke-width="1" />
+    <!-- Pulsing Live Green Dot -->
+    <circle cx="16" cy="14" r="4.5" fill="#10b981">
+      <animate attributeName="opacity" values="1;0.4;1" dur="2s" repeatCount="indefinite" />
+    </circle>
+    <circle cx="16" cy="14" r="8" fill="#10b981" opacity="0.25">
+      <animate attributeName="r" values="5;10;5" dur="2s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="0.3;0;0.3" dur="2s" repeatCount="indefinite" />
+    </circle>
+    <text x="32" y="18" fill="#a1a1aa" font-size="10.5" font-weight="600" letter-spacing="1" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+      STATUS: LIVE <tspan fill="#3f3f46">|</tspan> <tspan fill="#ffffff">SPRING BOOT 3.4</tspan> <tspan fill="#3f3f46">|</tspan> <tspan fill="#e4e4e7">FAST TeX &lt;5ms</tspan> <tspan fill="#3f3f46">|</tspan> <tspan fill="#10b981">Yjs CRDT</tspan>
     </text>
   </g>
 
-  <!-- GitHub / Release Tag in Top Right -->
-  <g transform="translate(1010, 24)">
-    <rect width="158" height="26" rx="13" fill="#18181b" stroke="#3f3f46" stroke-width="1" />
-    <text x="16" y="17" fill="#e4e4e7" font-size="11" font-weight="600" letter-spacing="0.5" class="mono-text">
-      v2.4.0 <tspan fill="#71717a">·</tspan> <tspan fill="#a1a1aa">PRODUCTION</tspan>
+  <!-- Version & Architecture Badge (Right) -->
+  <g transform="translate(980, 22)">
+    <rect width="188" height="28" rx="14" fill="#09090b" stroke="#3f3f46" stroke-width="1" />
+    <text x="14" y="18" fill="#e4e4e7" font-size="11" font-weight="600" letter-spacing="0.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+      JAVA 17 <tspan fill="#71717a">·</tspan> <tspan fill="#10b981">ENTERPRISE</tspan> <tspan fill="#71717a">·</tspan> v2.5
     </text>
   </g>
 
-  <!-- Central Hero Content -->
-  <g transform="translate(600, 140)" class="floating-logo" text-anchor="middle">
-    <!-- Geometric Monogram Glyph -->
-    <g transform="translate(0, -42) scale(0.9)">
-      <!-- Hexagonal Frame -->
+  <!-- Center Floating Hero Group -->
+  <g transform="translate(600, 135)" text-anchor="middle">
+    <animateTransform attributeName="transform" type="translate" values="600,135; 600,131; 600,135" dur="4s" repeatCount="indefinite" />
+
+    <!-- Hexagonal Emblem Glyph -->
+    <g transform="translate(0, -42) scale(0.95)">
       <polygon points="0,-28 24,-14 24,14 0,28 -24,14 -24,-14" fill="#18181b" stroke="#52525b" stroke-width="1.5" />
       <polygon points="0,-24 20,-12 20,12 0,24 -20,12 -20,-12" fill="#09090b" />
-      <!-- Z Monogram Path -->
+      <!-- Z Glyph Path -->
       <path d="M-11,-10 L11,-10 L-9,10 L11,10" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-      <circle cx="11" cy="-10" r="2" fill="#ffffff" />
-      <circle cx="-11" cy="10" r="2" fill="#ffffff" />
+      <circle cx="11" cy="-10" r="2.2" fill="#ffffff" />
+      <circle cx="-11" cy="10" r="2.2" fill="#ffffff" />
     </g>
 
     <!-- Main Title -->
-    <text y="24" fill="#ffffff" font-size="44" font-weight="800" letter-spacing="6" class="sans-text">
+    <text y="24" fill="#ffffff" font-size="44" font-weight="900" letter-spacing="8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">
       ZYNCKLE
     </text>
-    <text y="54" fill="#a1a1aa" font-size="13.5" font-weight="500" letter-spacing="2" class="mono-text">
+    <text y="54" fill="#a1a1aa" font-size="13" font-weight="600" letter-spacing="2.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
       THE UNIFIED COLLABORATIVE WORKSPACE &amp; RESEARCH OPERATING SYSTEM
     </text>
   </g>
 
   <!-- 4 Telemetry Cards at Bottom -->
-  <g transform="translate(32, 230)">
-    <!-- Card 1: Latency -->
+  <g transform="translate(32, 226)">
+    <!-- Card 1: Runtime Engine -->
     <g transform="translate(0, 0)">
-      <rect width="266" height="68" rx="8" fill="url(#card-grad)" stroke="url(#border-grad)" stroke-width="1" />
-      <text x="16" y="24" fill="#71717a" font-size="10" font-weight="600" letter-spacing="1" class="mono-text">01 // LATENCY PIPELINE</text>
-      <text x="16" y="50" fill="#ffffff" font-size="18" font-weight="700" class="sans-text">3.2 ms</text>
-      <text x="88" y="50" fill="#10b981" font-size="11" font-weight="600" class="mono-text">⚡ Vector PDF</text>
-      <circle cx="244" cy="34" r="3" fill="#10b981" />
+      <rect width="266" height="72" rx="10" fill="url(#zk-card-bg)" stroke="url(#zk-border-glow)" stroke-width="1" />
+      <text x="16" y="24" fill="#71717a" font-size="10" font-weight="600" letter-spacing="1" font-family="ui-monospace, monospace">01 // BACKEND ENGINE</text>
+      <text x="16" y="52" fill="#ffffff" font-size="17" font-weight="800" font-family="-apple-system, sans-serif">Spring Boot 3.4</text>
+      <text x="146" y="52" fill="#10b981" font-size="11" font-weight="600" font-family="ui-monospace, monospace">· Java 17</text>
+      <circle cx="246" cy="36" r="3.5" fill="#10b981" />
     </g>
 
-    <!-- Card 2: CRDT Realtime -->
+    <!-- Card 2: Latency Pipeline -->
     <g transform="translate(290, 0)">
-      <rect width="266" height="68" rx="8" fill="url(#card-grad)" stroke="url(#border-grad)" stroke-width="1" />
-      <text x="16" y="24" fill="#71717a" font-size="10" font-weight="600" letter-spacing="1" class="mono-text">02 // COLLABORATION</text>
-      <text x="16" y="50" fill="#ffffff" font-size="18" font-weight="700" class="sans-text">Yjs CRDTs</text>
-      <text x="122" y="50" fill="#38bdf8" font-size="11" font-weight="600" class="mono-text">· Live Peer Sync</text>
-      <circle cx="244" cy="34" r="3" fill="#38bdf8" />
+      <rect width="266" height="72" rx="10" fill="url(#zk-card-bg)" stroke="url(#zk-border-glow)" stroke-width="1" />
+      <text x="16" y="24" fill="#71717a" font-size="10" font-weight="600" letter-spacing="1" font-family="ui-monospace, monospace">02 // LATEX COMPILER</text>
+      <text x="16" y="52" fill="#ffffff" font-size="17" font-weight="800" font-family="-apple-system, sans-serif">&lt; 5 ms Latency</text>
+      <text x="142" y="52" fill="#38bdf8" font-size="11" font-weight="600" font-family="ui-monospace, monospace">· Vector PDF</text>
+      <circle cx="246" cy="36" r="3.5" fill="#38bdf8" />
     </g>
 
-    <!-- Card 3: TeX Engine -->
+    <!-- Card 3: Realtime Collaboration -->
     <g transform="translate(580, 0)">
-      <rect width="266" height="68" rx="8" fill="url(#card-grad)" stroke="url(#border-grad)" stroke-width="1" />
-      <text x="16" y="24" fill="#71717a" font-size="10" font-weight="600" letter-spacing="1" class="mono-text">03 // LATEX COMPILER</text>
-      <text x="16" y="50" fill="#ffffff" font-size="18" font-weight="700" class="sans-text">Pure-JS TeX</text>
-      <text x="134" y="50" fill="#f59e0b" font-size="11" font-weight="600" class="mono-text">· Zero Freeze</text>
-      <circle cx="244" cy="34" r="3" fill="#f59e0b" />
+      <rect width="266" height="72" rx="10" fill="url(#zk-card-bg)" stroke="url(#zk-border-glow)" stroke-width="1" />
+      <text x="16" y="24" fill="#71717a" font-size="10" font-weight="600" letter-spacing="1" font-family="ui-monospace, monospace">03 // CO-AUTHORING</text>
+      <text x="16" y="52" fill="#ffffff" font-size="17" font-weight="800" font-family="-apple-system, sans-serif">Yjs CRDT Mesh</text>
+      <text x="150" y="52" fill="#f59e0b" font-size="11" font-weight="600" font-family="ui-monospace, monospace">· Zero Conflict</text>
+      <circle cx="246" cy="36" r="3.5" fill="#f59e0b" />
     </g>
 
-    <!-- Card 4: Zero Trust Security -->
+    <!-- Card 4: Architecture & Security -->
     <g transform="translate(870, 0)">
-      <rect width="266" height="68" rx="8" fill="url(#card-grad)" stroke="url(#border-grad)" stroke-width="1" />
-      <text x="16" y="24" fill="#71717a" font-size="10" font-weight="600" letter-spacing="1" class="mono-text">04 // ZERO-TRUST DEFENSE</text>
-      <text x="16" y="50" fill="#ffffff" font-size="18" font-weight="700" class="sans-text">Scrypt + CSP</text>
-      <text x="138" y="50" fill="#a855f7" font-size="11" font-weight="600" class="mono-text">· SSRF Guard</text>
-      <circle cx="244" cy="34" r="3" fill="#a855f7" />
+      <rect width="266" height="72" rx="10" fill="url(#zk-card-bg)" stroke="url(#zk-border-glow)" stroke-width="1" />
+      <text x="16" y="24" fill="#71717a" font-size="10" font-weight="600" letter-spacing="1" font-family="ui-monospace, monospace">04 // ZERO-TRUST DEFENSE</text>
+      <text x="16" y="52" fill="#ffffff" font-size="17" font-weight="800" font-family="-apple-system, sans-serif">Scrypt + CSP</text>
+      <text x="134" y="52" fill="#a855f7" font-size="11" font-weight="600" font-family="ui-monospace, monospace">· SSRF Shield</text>
+      <circle cx="246" cy="36" r="3.5" fill="#a855f7" />
     </g>
   </g>
 
-  <!-- Bottom Command Bar -->
-  <g transform="translate(32, 318)">
-    <text x="0" y="16" fill="#71717a" font-size="11" font-weight="500" class="mono-text">
+  <!-- Bottom Interactive Quick Chords -->
+  <g transform="translate(32, 322)">
+    <text x="0" y="16" fill="#71717a" font-size="11" font-weight="500" font-family="ui-monospace, monospace">
       <tspan fill="#ffffff" font-weight="700">⌘K</tspan> Command Palette &#160;&#160;·&#160;&#160;
       <tspan fill="#ffffff" font-weight="700">C</tspan> Quick Capture &#160;&#160;·&#160;&#160;
-      <tspan fill="#ffffff" font-weight="700">G Y</tspan> Daily Edition &#160;&#160;·&#160;&#160;
+      <tspan fill="#ffffff" font-weight="700">G Y</tspan> The Daily Edition &#160;&#160;·&#160;&#160;
       <tspan fill="#ffffff" font-weight="700">Mod+Enter</tspan> Instant TeX &#160;&#160;·&#160;&#160;
-      <tspan fill="#ffffff" font-weight="700">Esc</tspan> Focus Mode
+      <tspan fill="#ffffff" font-weight="700">Ctrl+Shift+F</tspan> Full-Window Canvas
     </text>
-    <text x="1136" y="16" fill="#52525b" font-size="10" font-weight="500" text-anchor="end" class="mono-text">
-      PORT: 5173 / 8080 · RUNNING LOCAL-FIRST
+    <text x="1136" y="16" fill="#52525b" font-size="10.5" font-weight="600" text-anchor="end" font-family="ui-monospace, monospace">
+      HTTP://127.0.0.1:8080 · HTTP://LOCALHOST:5173 · LOCAL-FIRST ARCHITECTURE
     </text>
   </g>
 </svg>

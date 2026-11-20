@@ -1,0 +1,172 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 480" width="1200" height="480" fill="none">
+  <defs>
+    <linearGradient id="sb-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#000000" />
+      <stop offset="50%" stop-color="#09090b" />
+      <stop offset="100%" stop-color="#000000" />
+    </linearGradient>
+
+    <linearGradient id="sb-box" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#18181b" />
+      <stop offset="100%" stop-color="#0f0f12" />
+    </linearGradient>
+
+    <linearGradient id="sb-border" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#52525b" />
+      <stop offset="100%" stop-color="#27272a" />
+    </linearGradient>
+
+    <linearGradient id="sb-green-glow" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10b981" stop-opacity="0.2" />
+      <stop offset="100%" stop-color="#10b981" stop-opacity="0.8" />
+    </linearGradient>
+
+    <pattern id="sb-grid" width="30" height="30" patternUnits="userSpaceOnUse">
+      <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#27272a" stroke-width="0.5" stroke-opacity="0.4" />
+      <circle cx="30" cy="30" r="0.8" fill="#52525b" fill-opacity="0.4" />
+    </pattern>
+  </defs>
+
+  <!-- Canvas -->
+  <rect width="1200" height="480" rx="16" fill="url(#sb-bg)" stroke="#27272a" stroke-width="1.5" />
+  <rect width="1200" height="480" rx="16" fill="url(#sb-grid)" />
+
+  <!-- Title Bar -->
+  <g transform="translate(40, 36)">
+    <rect width="32" height="32" rx="8" fill="#18181b" stroke="#3f3f46" stroke-width="1" />
+    <text x="16" y="21" fill="#ffffff" font-size="14" font-weight="900" text-anchor="middle" font-family="ui-monospace, monospace">☕</text>
+    <text x="44" y="16" fill="#ffffff" font-size="16" font-weight="800" font-family="-apple-system, sans-serif">SPRING BOOT 3.4 ENTERPRISE BACKEND ARCHITECTURE</text>
+    <text x="44" y="32" fill="#71717a" font-size="11" font-weight="600" font-family="ui-monospace, monospace">HIGH-THROUGHPUT JAVA 17 RUNTIME · REST CONTROLLER MESH · EMBEDDED H2 / POSTGRESQL</text>
+  </g>
+
+  <!-- 4 Architectural Pillars -->
+
+  <!-- Pillar 1: Client Gateway -->
+  <g transform="translate(40, 95)">
+    <rect width="255" height="345" rx="12" fill="url(#sb-box)" stroke="url(#sb-border)" stroke-width="1.2" />
+    <rect x="0" y="0" width="255" height="40" rx="12" fill="#27272a" fill-opacity="0.4" />
+    <text x="16" y="25" fill="#ffffff" font-size="12" font-weight="800" letter-spacing="1" font-family="ui-monospace, monospace">01 // CLIENT GATEWAY</text>
+    <circle cx="236" cy="20" r="4" fill="#38bdf8" />
+
+    <!-- Items -->
+    <g transform="translate(14, 52)">
+      <rect width="227" height="48" rx="8" fill="#09090b" stroke="#27272a" stroke-width="1" />
+      <text x="12" y="20" fill="#ffffff" font-size="12" font-weight="700" font-family="-apple-system, sans-serif">React 18 + Vite 6</text>
+      <text x="12" y="36" fill="#71717a" font-size="10" font-family="ui-monospace, monospace">Local-first client (Port 5173)</text>
+    </g>
+
+    <g transform="translate(14, 110)">
+      <rect width="227" height="48" rx="8" fill="#09090b" stroke="#27272a" stroke-width="1" />
+      <text x="12" y="20" fill="#ffffff" font-size="12" font-weight="700" font-family="-apple-system, sans-serif">Reverse Proxy Routing</text>
+      <text x="12" y="36" fill="#71717a" font-size="10" font-family="ui-monospace, monospace">/api/* -&gt; 127.0.0.1:8080</text>
+    </g>
+
+    <g transform="translate(14, 168)">
+      <rect width="227" height="48" rx="8" fill="#09090b" stroke="#27272a" stroke-width="1" />
+      <text x="12" y="20" fill="#ffffff" font-size="12" font-weight="700" font-family="-apple-system, sans-serif">Transparent Fallback</text>
+      <text x="12" y="36" fill="#71717a" font-size="10" font-family="ui-monospace, monospace">Zero-downtime offline store</text>
+    </g>
+
+    <g transform="translate(14, 226)">
+      <rect width="227" height="52" rx="8" fill="#09090b" stroke="#27272a" stroke-width="1" />
+      <text x="12" y="20" fill="#ffffff" font-size="12" font-weight="700" font-family="-apple-system, sans-serif">Self-Contained Maven</text>
+      <text x="12" y="38" fill="#10b981" font-size="10" font-weight="600" font-family="ui-monospace, monospace">./mvnw.cmd · Apache 3.9.6</text>
+    </g>
+  </g>
+
+  <!-- Pillar 2: Security & Traffic Filter -->
+  <g transform="translate(325, 95)">
+    <rect width="255" height="345" rx="12" fill="url(#sb-box)" stroke="url(#sb-border)" stroke-width="1.2" />
+    <rect x="0" y="0" width="255" height="40" rx="12" fill="#27272a" fill-opacity="0.4" />
+    <text x="16" y="25" fill="#ffffff" font-size="12" font-weight="800" letter-spacing="1" font-family="ui-monospace, monospace">02 // SECURITY FILTER</text>
+    <circle cx="236" cy="20" r="4" fill="#a855f7" />
+
+    <g transform="translate(14, 52)">
+      <rect width="227" height="48" rx="8" fill="#09090b" stroke="#27272a" stroke-width="1" />
+      <text x="12" y="20" fill="#ffffff" font-size="12" font-weight="700" font-family="-apple-system, sans-serif">Spring Security 6</text>
+      <text x="12" y="36" fill="#71717a" font-size="10" font-family="ui-monospace, monospace">Stateless session creation</text>
+    </g>
+
+    <g transform="translate(14, 110)">
+      <rect width="227" height="48" rx="8" fill="#09090b" stroke="#27272a" stroke-width="1" />
+      <text x="12" y="20" fill="#ffffff" font-size="12" font-weight="700" font-family="-apple-system, sans-serif">CORS Origin Pattern</text>
+      <text x="12" y="36" fill="#71717a" font-size="10" font-family="ui-monospace, monospace">Auto-permits localhost:5173</text>
+    </g>
+
+    <g transform="translate(14, 168)">
+      <rect width="227" height="48" rx="8" fill="#09090b" stroke="#27272a" stroke-width="1" />
+      <text x="12" y="20" fill="#ffffff" font-size="12" font-weight="700" font-family="-apple-system, sans-serif">CSRF Disabled for REST</text>
+      <text x="12" y="36" fill="#71717a" font-size="10" font-family="ui-monospace, monospace">Stateless token headers</text>
+    </g>
+
+    <g transform="translate(14, 226)">
+      <rect width="227" height="52" rx="8" fill="#09090b" stroke="#27272a" stroke-width="1" />
+      <text x="12" y="20" fill="#ffffff" font-size="12" font-weight="700" font-family="-apple-system, sans-serif">Actuator Telemetry</text>
+      <text x="12" y="38" fill="#a855f7" font-size="10" font-weight="600" font-family="ui-monospace, monospace">/actuator/health · metrics</text>
+    </g>
+  </g>
+
+  <!-- Pillar 3: Controllers & Engines -->
+  <g transform="translate(610, 95)">
+    <rect width="265" height="345" rx="12" fill="url(#sb-box)" stroke="url(#sb-border)" stroke-width="1.2" />
+    <rect x="0" y="0" width="265" height="40" rx="12" fill="#27272a" fill-opacity="0.4" />
+    <text x="16" y="25" fill="#ffffff" font-size="12" font-weight="800" letter-spacing="1" font-family="ui-monospace, monospace">03 // REST CONTROLLERS</text>
+    <circle cx="245" cy="20" r="4" fill="#10b981" />
+
+    <g transform="translate(14, 52)">
+      <rect width="237" height="48" rx="8" fill="#09090b" stroke="#27272a" stroke-width="1" />
+      <text x="12" y="20" fill="#ffffff" font-size="12" font-weight="700" font-family="-apple-system, sans-serif">Auth &amp; Workspace</text>
+      <text x="12" y="36" fill="#71717a" font-size="10" font-family="ui-monospace, monospace">/api/auth/* · /api/workspaces</text>
+    </g>
+
+    <g transform="translate(14, 110)">
+      <rect width="237" height="48" rx="8" fill="#09090b" stroke="#27272a" stroke-width="1" />
+      <text x="12" y="20" fill="#ffffff" font-size="12" font-weight="700" font-family="-apple-system, sans-serif">Projects &amp; Tasks CRUD</text>
+      <text x="12" y="36" fill="#71717a" font-size="10" font-family="ui-monospace, monospace">/api/projects · /api/tasks</text>
+    </g>
+
+    <g transform="translate(14, 168)">
+      <rect width="237" height="48" rx="8" fill="#09090b" stroke="#27272a" stroke-width="1" />
+      <text x="12" y="20" fill="#ffffff" font-size="12" font-weight="700" font-family="-apple-system, sans-serif">LatexPdfCompiler.java</text>
+      <text x="12" y="36" fill="#10b981" font-size="10" font-weight="600" font-family="ui-monospace, monospace">&lt;5ms Vector PDF 1.4 Binary</text>
+    </g>
+
+    <g transform="translate(14, 226)">
+      <rect width="237" height="52" rx="8" fill="#09090b" stroke="#27272a" stroke-width="1" />
+      <text x="12" y="20" fill="#ffffff" font-size="12" font-weight="700" font-family="-apple-system, sans-serif">AI, Storage &amp; Previews</text>
+      <text x="12" y="38" fill="#71717a" font-size="10" font-family="ui-monospace, monospace">/api/ai/* · /api/storage/usage</text>
+    </g>
+  </g>
+
+  <!-- Pillar 4: Persistence Layer -->
+  <g transform="translate(905, 95)">
+    <rect width="255" height="345" rx="12" fill="url(#sb-box)" stroke="url(#sb-border)" stroke-width="1.2" />
+    <rect x="0" y="0" width="255" height="40" rx="12" fill="#27272a" fill-opacity="0.4" />
+    <text x="16" y="25" fill="#ffffff" font-size="12" font-weight="800" letter-spacing="1" font-family="ui-monospace, monospace">04 // PERSISTENCE</text>
+    <circle cx="236" cy="20" r="4" fill="#f59e0b" />
+
+    <g transform="translate(14, 52)">
+      <rect width="227" height="48" rx="8" fill="#09090b" stroke="#27272a" stroke-width="1" />
+      <text x="12" y="20" fill="#ffffff" font-size="12" font-weight="700" font-family="-apple-system, sans-serif">DatabaseInitializer</text>
+      <text x="12" y="36" fill="#71717a" font-size="10" font-family="ui-monospace, monospace">Auto-creates relational DDL</text>
+    </g>
+
+    <g transform="translate(14, 110)">
+      <rect width="227" height="48" rx="8" fill="#09090b" stroke="#27272a" stroke-width="1" />
+      <text x="12" y="20" fill="#ffffff" font-size="12" font-weight="700" font-family="-apple-system, sans-serif">H2 / PostgreSQL</text>
+      <text x="12" y="36" fill="#71717a" font-size="10" font-family="ui-monospace, monospace">jdbc:h2:file:./data/zynckle</text>
+    </g>
+
+    <g transform="translate(14, 168)">
+      <rect width="227" height="48" rx="8" fill="#09090b" stroke="#27272a" stroke-width="1" />
+      <text x="12" y="20" fill="#ffffff" font-size="12" font-weight="700" font-family="-apple-system, sans-serif">HikariCP Pool</text>
+      <text x="12" y="36" fill="#71717a" font-size="10" font-family="ui-monospace, monospace">High-performance pooling</text>
+    </g>
+
+    <g transform="translate(14, 226)">
+      <rect width="227" height="52" rx="8" fill="#09090b" stroke="#27272a" stroke-width="1" />
+      <text x="12" y="20" fill="#ffffff" font-size="12" font-weight="700" font-family="-apple-system, sans-serif">Flyway V1 - V3</text>
+      <text x="12" y="38" fill="#f59e0b" font-size="10" font-weight="600" font-family="ui-monospace, monospace">Production migrations</text>
+    </g>
+  </g>
+</svg>

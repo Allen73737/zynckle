@@ -1,0 +1,32 @@
+{
+  "name": "zynckle",
+  "description": "⚡ Unified Collaborative Workspace & Research OS — Instant LaTeX (<5ms), Live Responsive Viewports, Yjs CRDT Docs, Kanban Tasks, AI Architecture Designer & Spring Boot 17 Java Enterprise Engine.",
+  "homepage": "https://github.com/Allen73737/zynckle",
+  "topics": [
+    "spring-boot",
+    "java-17",
+    "react",
+    "typescript",
+    "vite",
+    "latex-editor",
+    "crdt",
+    "yjs",
+    "workspace",
+    "kanban",
+    "responsive-preview",
+    "developer-tools",
+    "productivity",
+    "monochrome-ui",
+    "h2-database",
+    "postgresql",
+    "ai-assistant",
+    "rest-api",
+    "tiptap",
+    "codemirror"
+  ],
+  "features": {
+    "issues": true,
+    "projects": true,
+    "wiki": false
+  }
+}
