@@ -1,0 +1,8 @@
+#!/bin/sh
+DIRNAME="$(cd "$(dirname "$0")" && pwd)"
+REPO_DIR="$DIRNAME/m2-repo"
+if [ -f "$DIRNAME/.tools/apache-maven-3.9.6/bin/mvn" ]; then
+    exec "$DIRNAME/.tools/apache-maven-3.9.6/bin/mvn" -f "$DIRNAME/pom.xml" -Dmaven.repo.local="$REPO_DIR" "$@"
+else
+    exec mvn -f "$DIRNAME/pom.xml" -Dmaven.repo.local="$REPO_DIR" "$@"
+fi

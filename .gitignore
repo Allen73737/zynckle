@@ -6,6 +6,9 @@ node_modules/
 dist/
 frontend/dist/
 target/
+backend/target/
+backend/m2-repo/
+backend/.tools/
 
 # Local Environment & Secrets
 .env
@@ -14,6 +17,9 @@ target/
 backend/data/
 backend/data/*
 !backend/data/.gitkeep
+data/
+*.mv.db
+*.trace.db
 *.secret
 
 # Logs & Temp

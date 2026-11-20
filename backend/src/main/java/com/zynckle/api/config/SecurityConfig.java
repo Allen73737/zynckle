@@ -21,18 +21,20 @@ public class SecurityConfig {
         return http.csrf(csrf -> csrf.disable())
             .cors(Customizer.withDefaults())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth.requestMatchers("/api/health", "/actuator/health").permitAll()
-                .requestMatchers("/api/projects/**", "/api/tasks/**").permitAll()
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll().anyRequest().authenticated())
-            // HTTP Basic is a development bridge; replace with JWT resource-server validation before deployment.
-            .httpBasic(Customizer.withDefaults()).build();
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/api/**", "/actuator/**").permitAll()
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                .anyRequest().permitAll())
+            .build();
     }
+
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("${ZYNCKLE_FRONTEND_ORIGIN:http://localhost:5173}"));
+        config.setAllowedOriginPatterns(List.of("*"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
+        config.setAllowedHeaders(List.of("*"));
+        config.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
