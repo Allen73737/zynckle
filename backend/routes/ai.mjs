@@ -2,27 +2,35 @@ import { db, persist } from '../lib/store.mjs';
 import { config } from '../lib/config.mjs';
 import { fail, str, rateLimit, HttpError, securityHeaders } from '../lib/http.mjs';
 import { now, id, canSee, requireEdit, userById, publicUser, logActivity } from '../lib/core.mjs';
-import { aiStatus, resolveProvider, streamChat, completeChat, modePrompts, architectureSections } from '../lib/ai.mjs';
+import { aiStatus, resolveProvider, streamChat, completeChat, modePrompts, architectureSections, citationRules, queryPlannerPrompt } from '../lib/ai.mjs';
+import { search, toPassages, snippet, syncIndex, ragStatus, embeddingsSettled } from '../lib/rag.mjs';
 import { readCodeFile } from './code.mjs';
 
 const MODES = Object.keys(modePrompts);
 const CONTEXT_CHARS = Number(process.env.AI_CONTEXT_CHARS || 28_000);
+const RAG_CHARS = Number(process.env.RAG_CONTEXT_CHARS || 14_000);
+// Modes that answer in prose and can cite; planner and architecture return structured output.
+const CITE_MODES = new Set(['general', 'explain', 'review', 'bug', 'database', 'docs']);
+const RAG_TYPES = ['project', 'task', 'document', 'latex', 'code-file', 'file', 'architecture'];
 const KEY_FILES = /(^|\/)(readme(\.\w+)?|package\.json|pom\.xml|build\.gradle(\.kts)?|requirements\.txt|pyproject\.toml|go\.mod|cargo\.toml|composer\.json|docker-compose\.ya?ml|dockerfile|\.env\.example|schema\.(sql|prisma)|openapi\.(ya?ml|json))$/i;
 
 const plain = html => String(html || '').replace(/<(br|\/p|\/h\d|\/li)>/gi, '\n').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n\n').trim();
 const numbered = text => text.split(/\r?\n/).map((line, i) => `${String(i + 1).padStart(4)}| ${line}`).join('\n');
 
-/** Build the context block from data the caller is authorised to see. */
+/** Build the context block from data the caller is authorised to see. Every block is numbered for citation. */
 async function buildContext(ctx, spec = {}, mode = 'general') {
   const blocks = [];
   const sources = [];
   let budget = CONTEXT_CHARS;
-  const add = (label, text, source) => {
-    if (budget <= 200 || !text) return;
-    const slice = text.length > budget ? `${text.slice(0, budget)}\n…[truncated]` : text;
+  const add = (label, text, source, cap = budget) => {
+    const room = Math.min(budget, cap);
+    if (room <= 200 || !text) return 0;
+    const slice = text.length > room ? `${text.slice(0, room)}\n…[truncated]` : text;
     budget -= slice.length;
-    blocks.push(`<context source="${label.replace(/"/g, "'")}">\n${slice}\n</context>`);
-    sources.push(source);
+    const n = sources.length + 1;
+    blocks.push(`<context source="[${n}] ${label.replace(/"/g, "'")}">\n${slice}\n</context>`);
+    sources.push({ n, ...source });
+    return slice.length;
   };
   const ws = ctx.workspace.id;
 
@@ -61,7 +69,49 @@ async function buildContext(ctx, spec = {}, mode = 'general') {
     const projects = db.projects.filter(p => p.workspaceId === ws && !p.archived);
     add('workspace overview', `Workspace: ${ctx.workspace.name}\nProjects:\n${projects.map(p => `- ${p.name} (${p.status}; ${db.tasks.filter(t => t.projectId === p.id && t.status !== 'Done').length} open tasks)`).join('\n') || '(none)'}`, { type: 'workspace', id: ws, label: 'Workspace overview' });
   }
-  return { text: blocks.join('\n\n'), sources };
+  return { blocks, sources, add, remaining: () => budget };
+}
+
+const linkFor = source => ({ project: `/projects/${source.id}`, document: `/documents?doc=${source.id}`, 'code-project': `/code/${source.id}` })[source.type];
+const sourceKeys = sources => sources.flatMap(s => ['code-file', 'document', 'project'].includes(s.type) ? [`${s.type}:${s.id}`] : []);
+
+/** Rewrite a follow-up into standalone search queries with one short model call (deep mode). */
+async function planQueries(provider, history) {
+  const transcript = history.slice(-6).map(m => `${m.role.toUpperCase()}: ${m.content.slice(0, 1500)}`).join('\n\n');
+  try {
+    const raw = await completeChat({ providerId: provider.providerId, model: provider.model, temperature: 0, maxTokens: 300, signal: AbortSignal.timeout(12_000),
+      messages: [{ role: 'system', content: queryPlannerPrompt }, { role: 'user', content: transcript }] });
+    const json = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1));
+    return [json.standalone, ...(Array.isArray(json.queries) ? json.queries : [])].filter(q => typeof q === 'string' && q.trim()).map(q => q.slice(0, 300)).slice(0, 6);
+  } catch { return []; }
+}
+
+/** Queries for automatic retrieval: the latest message, plus the previous one when it reads like a follow-up. */
+function autoQueries(history) {
+  const users = history.filter(m => m.role === 'user');
+  const last = users.at(-1)?.content || '';
+  const queries = [last.slice(0, 2000)];
+  if (users.length > 1 && last.split(/\s+/).length < 14) queries.push(`${users.at(-2).content.slice(0, 600)} ${last}`);
+  return queries;
+}
+
+/** Retrieve workspace passages and add them as numbered context after the explicit selection. */
+async function retrieve(ctx, context, { queries, ragMode }) {
+  const result = await search(ctx, queries, { limit: ragMode === 'deep' ? 12 : 8, exclude: sourceKeys(context.sources) });
+  let room = Math.min(RAG_CHARS, context.remaining());
+  let used = 0;
+  for (const passage of toPassages(result.hits)) {
+    if (room < 300) break;
+    const where = passage.location ? ` (${passage.location})` : '';
+    const size = context.add(`${passage.type}: ${passage.title}${where}`, passage.text, {
+      type: passage.type, id: passage.sourceId, label: passage.title, location: passage.location || null, link: passage.link,
+      snippet: snippet(passage.text, queries.join(' ')), score: Number(passage.score.toFixed(3)), retrieved: true,
+    }, Math.min(room, 3200));
+    if (!size) break;
+    room -= size;
+    used++;
+  }
+  return { mode: result.mode, queries: result.queries, tookMs: result.tookMs, passages: used, indexed: result.indexed };
 }
 
 function checkLimits(ctx) {
@@ -110,12 +160,19 @@ async function prepare(ctx) {
   } else {
     history = cleanMessages(body.messages);
   }
+  const ragMode = ['off', 'auto', 'deep'].includes(body.rag) ? body.rag : 'auto';
+  let retrieval = null;
+  if (ragMode !== 'off' && CITE_MODES.has(mode)) {
+    const planned = ragMode === 'deep' ? await planQueries(provider, history) : [];
+    retrieval = { rag: ragMode, ...(await retrieve(ctx, context, { queries: [...planned, ...autoQueries(history)], ragMode })) };
+  }
   const system = `${modePrompts[mode]}\n\nToday is ${new Date().toISOString().slice(0, 10)}. The user is ${ctx.user.name} in workspace "${ctx.workspace.name}".`;
   const messages = [{ role: 'system', content: system }];
-  if (context.text) messages.push({ role: 'system', content: `Reference material for this request:\n${context.text}` });
+  if (context.blocks.length) messages.push({ role: 'system', content: `Reference material for this request:\n${context.blocks.join('\n\n')}${CITE_MODES.has(mode) ? `\n\n${citationRules}` : ''}` });
   messages.push(...history);
   const temperature = mode === 'planner' || section === 'components' ? 0.2 : mode === 'review' || mode === 'docs' ? 0.25 : 0.4;
-  return { mode, provider, messages, temperature, conversation, sources: context.sources, section };
+  const sources = context.sources.map(source => ({ ...source, link: source.link || linkFor(source) || null }));
+  return { mode, provider, messages, temperature, conversation, sources, section, retrieval };
 }
 
 const conversationSummary = c => ({ id: c.id, title: c.title, mode: c.mode, updatedAt: c.updatedAt, createdAt: c.createdAt, messageCount: c.messages.length, pinned: Boolean(c.pinned) });
@@ -128,7 +185,7 @@ export default function register(router) {
     checkLimits(ctx);
     const prepared = await prepare(ctx);
     const message = await completeChat({ providerId: prepared.provider.providerId, model: prepared.provider.model, messages: prepared.messages, temperature: prepared.temperature });
-    return { message, model: prepared.provider.model, provider: prepared.provider.label, sources: prepared.sources };
+    return { message, model: prepared.provider.model, provider: prepared.provider.label, sources: prepared.sources, retrieval: prepared.retrieval };
   });
 
   /** Server-sent events: meta → many delta frames → done (or error). */
@@ -140,7 +197,7 @@ export default function register(router) {
     res.on('close', () => { if (!res.writableFinished) controller.abort(); });
     res.writeHead(200, { ...securityHeaders(req), 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache, no-transform', connection: 'keep-alive', 'x-accel-buffering': 'no' });
     const sendEvent = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-    sendEvent('meta', { conversationId: prepared.conversation?.id || null, provider: prepared.provider.label, providerId: prepared.provider.providerId, model: prepared.provider.model, sources: prepared.sources, mode: prepared.mode, section: prepared.section });
+    sendEvent('meta', { conversationId: prepared.conversation?.id || null, provider: prepared.provider.label, providerId: prepared.provider.providerId, model: prepared.provider.model, sources: prepared.sources, mode: prepared.mode, section: prepared.section, retrieval: prepared.retrieval });
     let text = '';
     try {
       for await (const delta of streamChat({ providerId: prepared.provider.providerId, model: prepared.provider.model, messages: prepared.messages, temperature: prepared.temperature, signal: controller.signal })) {
@@ -150,7 +207,7 @@ export default function register(router) {
       let messageId = null;
       if (prepared.conversation && text) {
         messageId = id();
-        prepared.conversation.messages.push({ id: messageId, role: 'assistant', content: text, createdAt: now(), provider: prepared.provider.label, model: prepared.provider.model, sources: prepared.sources });
+        prepared.conversation.messages.push({ id: messageId, role: 'assistant', content: text, createdAt: now(), provider: prepared.provider.label, model: prepared.provider.model, sources: prepared.sources, retrieval: prepared.retrieval });
         prepared.conversation.updatedAt = now();
         persist();
       }
@@ -167,6 +224,31 @@ export default function register(router) {
       sendEvent('error', { error: error instanceof HttpError ? error.message : 'The AI response was interrupted', status: error.status || 502 });
     }
     res.end();
+  });
+
+  // ---- Workspace knowledge (RAG index) ----
+  router.get('/api/ai/knowledge', async ctx => { await syncIndex(ctx.workspace.id); return ragStatus(ctx.workspace.id); });
+  router.post('/api/ai/knowledge/reindex', async ctx => {
+    rateLimit(`rag-reindex:${ctx.workspace.id}`, 6, 60_000);
+    await syncIndex(ctx.workspace.id, { force: true });
+    if (ctx.body.wait) await embeddingsSettled();
+    return ragStatus(ctx.workspace.id);
+  });
+  router.get('/api/ai/knowledge/search', async ctx => {
+    rateLimit(`rag-search:${ctx.user.id}`, 120, 60_000);
+    const q = String(ctx.query.get('q') || '').trim().slice(0, 500);
+    if (q.length < 2) return { query: q, results: [], mode: 'lexical', tookMs: 0 };
+    const types = String(ctx.query.get('types') || '').split(',').filter(t => RAG_TYPES.includes(t));
+    const limit = Math.min(30, Math.max(1, Number(ctx.query.get('limit')) || 12));
+    const result = await search(ctx, [q], { limit, types });
+    return {
+      query: q, mode: result.mode, tookMs: result.tookMs, indexed: result.indexed,
+      results: result.hits.map(({ chunk, score, signals }) => ({
+        id: chunk.id, type: chunk.type, sourceId: chunk.sourceId, title: chunk.title, section: chunk.section || null, location: chunk.location || null,
+        link: chunk.link, updatedAt: chunk.updatedAt || null, snippet: snippet(chunk.text, q, 320), score: Number(score.toFixed(3)),
+        signals: { lexical: signals?.lexical ? Number(signals.lexical.toFixed(3)) : null, semantic: signals?.semantic ? Number(signals.semantic.toFixed(3)) : null },
+      })),
+    };
   });
 
   // ---- Conversations (private to each user) ----

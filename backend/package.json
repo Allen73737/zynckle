@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test test/api.test.mjs",
+    "test": "node --test --test-concurrency=1 test/api.test.mjs test/rag.test.mjs test/spring-ai.test.mjs",
+    "test:spring": "node --test test/spring-ai.test.mjs",
     "dev": "node --watch server.mjs"
   },
   "dependencies": {

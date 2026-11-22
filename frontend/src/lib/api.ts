@@ -343,7 +343,9 @@ export function uploadWithProgress<T>(path: string, file: Blob, headers: Record<
   });
 }
 
-export type StreamMeta = { conversationId: string | null; provider: string; providerId: string; model: string; sources: { type: string; id: string; label: string }[]; mode: string; section?: string | null };
+export type Source = { n?: number; type: string; id: string; label: string; location?: string | null; link?: string | null; snippet?: string; score?: number; retrieved?: boolean };
+export type Retrieval = { rag: 'auto' | 'deep'; mode: 'hybrid' | 'lexical'; queries: string[]; tookMs: number; passages: number; indexed: { chunks: number; sources: number } };
+export type StreamMeta = { conversationId: string | null; provider: string; providerId: string; model: string; sources: Source[]; mode: string; section?: string | null; retrieval?: Retrieval | null };
 
 /** POST to the SSE endpoint and surface meta / delta / done / error frames. */
 export async function streamAI(body: Record<string, unknown>, handlers: { onMeta?: (meta: StreamMeta) => void; onDelta: (text: string) => void; signal?: AbortSignal }): Promise<{ messageId: string | null }> {
@@ -353,7 +355,12 @@ export async function streamAI(body: Record<string, unknown>, handlers: { onMeta
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
       body: JSON.stringify(body),
     });
-    if (!response.ok || !response.body) throw new Error('API offline');
+    if (!response.ok || !response.body) {
+      // A real API answered with an error (rate limit, validation, provider down): surface it.
+      const data = (response.headers.get('content-type') || '').includes('json') ? await response.json().catch(() => null) : null;
+      if (data?.error) throw new ApiError(String(data.error), response.status, data);
+      throw new Error('API offline');
+    }
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
@@ -378,8 +385,8 @@ export async function streamAI(body: Record<string, unknown>, handlers: { onMeta
     }
     return result;
   } catch (error) {
-    if ((error as Error).name === 'AbortError') throw error;
-    // High-assurance local AI streamer
+    if ((error as Error).name === 'AbortError' || error instanceof ApiError) throw error;
+    // Offline demo: the API is unreachable, so answer with a canned local brief.
     handlers.onMeta?.({ conversationId: 'conv-local', provider: 'Zynckle Neural Engine', providerId: 'zynckle-local', model: 'zynckle-core-v1', sources: [], mode: 'general' });
     const localResponse = [
       "### Zynckle System Brief\n\n",

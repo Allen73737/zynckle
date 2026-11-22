@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams, NavLink } from 'react-router-dom';
-import { ArrowUp, Bug, Check, ChevronDown, Code2, Copy, Database, FileCode2, FileText, FolderKanban, LoaderCircle, MessagesSquare, Pin, PinOff, Plus, RotateCcw, Save, Search, ShieldCheck, Sparkles, Square, Trash2, X, BookOpen, SlidersHorizontal } from 'lucide-react';
-import Markdown, { markdownToHtml } from './Markdown';
+import { useSearchParams, NavLink, useNavigate } from 'react-router-dom';
+import { ArrowUp, Bug, Check, ChevronDown, Code2, Copy, Database, FileText, Library, LoaderCircle, MessagesSquare, Pin, PinOff, Plus, RotateCcw, Save, Search, ShieldCheck, Sparkles, Square, ThumbsDown, ThumbsUp, Trash2, X, BookOpen, SlidersHorizontal } from 'lucide-react';
+import Markdown, { markdownToHtml, type Citation } from './Markdown';
 import AINav from './AINav';
-import { api, errorMessage, streamAI, timeAgo, type StreamMeta } from './lib/api';
+import { SOURCE_ICONS, SOURCE_LABELS } from './sourceMeta';
+import { ActionPlan, splitActions } from './AiActions';
+import { api, errorMessage, streamAI, timeAgo, type Retrieval, type Source } from './lib/api';
 
 type Mode = 'general' | 'explain' | 'review' | 'bug' | 'database' | 'docs';
-type Message = { id: string; role: 'user' | 'assistant'; content: string; createdAt?: string; model?: string; provider?: string; sources?: StreamMeta['sources'] };
+type Rag = 'off' | 'auto' | 'deep';
+type Message = { id: string; role: 'user' | 'assistant'; content: string; createdAt?: string; model?: string; provider?: string; sources?: Source[]; retrieval?: Retrieval | null; feedback?: number };
 type Conversation = { id: string; title: string; mode: Mode; updatedAt: string; messageCount: number; pinned: boolean };
 type Provider = { id: string; label: string; configured: boolean; defaultModel: string; models: string[] };
 type Status = { available: boolean; provider: string; defaultProvider: string | null; message: string; providers: Provider[]; limits: { perMinute: number; perDay: number } };
@@ -22,8 +25,43 @@ export const AI_MODES: { id: Mode; label: string; hint: string; icon: typeof Spa
   { id: 'docs', label: 'Write docs', hint: 'Evidence-based documentation', icon: BookOpen, prompts: ['Write a README based on the selected code project', 'Document the API in these files', 'Write an installation guide from this repository'] },
 ];
 
-export default function AIStudio({ projects, notify, onDocumentSaved }: { projects: { id: string | number; name: string }[]; notify: (message: string) => void; onDocumentSaved?: (doc: { id: string; title: string; content: string; updated: string }) => void }) {
+
+const RAG_OPTIONS: { id: Rag; label: string; hint: string }[] = [
+  { id: 'off', label: 'Off', hint: 'Use only the context you select' },
+  { id: 'auto', label: 'Auto', hint: 'Search the workspace for every question' },
+  { id: 'deep', label: 'Deep', hint: 'Rewrite the question into several searches first (one extra model call)' },
+];
+const readRag = (): Rag => { try { const v = localStorage.getItem('zynckle-ai-rag'); return v === 'off' || v === 'deep' ? v : 'auto'; } catch { return 'auto'; } };
+
+/** Numbered evidence under an answer, with how many of them the answer actually cited. */
+function SourceList({ message, onOpen }: { message: Message; onOpen: (source: Source) => void }) {
+  const [open, setOpen] = useState(false);
+  const sources = message.sources || [];
+  const cited = new Set([...message.content.matchAll(/\[(\d{1,2})\]/g)].map(m => Number(m[1])));
+  const citedCount = sources.filter(s => s.n && cited.has(s.n)).length;
+  return <div className="zy-evidence">
+    <button className="zy-evidence-head" onClick={() => setOpen(o => !o)} aria-expanded={open}>
+      <Library size={13}/>
+      <span>{sources.length} source{sources.length === 1 ? '' : 's'}{citedCount ? ` · ${citedCount} cited` : ''}</span>
+      {message.retrieval && <small>{message.retrieval.rag === 'deep' ? 'Deep search' : 'Workspace search'} · {message.retrieval.mode} · {message.retrieval.tookMs} ms</small>}
+      <ChevronDown size={13} className={open ? 'flip' : ''}/>
+    </button>
+    {!open && <div className="zy-evidence-strip">{sources.slice(0, 8).map(s => { const Icon = SOURCE_ICONS[s.type] || FileText; return <button key={`${s.n}-${s.id}`} className={s.n && cited.has(s.n) ? 'cited' : ''} onClick={() => onOpen(s)} title={s.snippet || s.label}>{s.n && <b>{s.n}</b>}<Icon size={12}/>{s.label}</button>; })}</div>}
+    {open && <ol className="zy-evidence-list">{sources.map(s => { const Icon = SOURCE_ICONS[s.type] || FileText; return <li key={`${s.n}-${s.id}`} className={s.n && cited.has(s.n) ? 'cited' : ''}>
+      <button onClick={() => onOpen(s)} disabled={!s.link}>
+        <span className="zy-evidence-n">{s.n}</span>
+        <span className="zy-evidence-body"><strong><Icon size={13}/>{s.label}</strong><small>{SOURCE_LABELS[s.type] || s.type}{s.location ? ` · ${s.location}` : ''}{s.retrieved ? ' · retrieved' : ' · selected'}{typeof s.score === 'number' ? ` · relevance ${Math.round(s.score * 100)}%` : ''}</small>{s.snippet && <em>{s.snippet}</em>}</span>
+      </button>
+    </li>; })}</ol>}
+    {message.retrieval?.rag === 'deep' && open && message.retrieval.queries.length > 1 && <p className="zy-evidence-queries">Searched for: {message.retrieval.queries.map(q => <code key={q}>{q}</code>)}</p>}
+  </div>;
+}
+
+export default function AIStudio({ projects, tasks = [], canEdit = true, notify, onDocumentSaved }: { projects: { id: string | number; name: string }[]; tasks?: { id: string | number; title: string }[]; canEdit?: boolean; notify: (message: string) => void; onDocumentSaved?: (doc: { id: string; title: string; content: string; updated: string }) => void }) {
   const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
+  const [rag, setRagState] = useState<Rag>(readRag);
+  const setRag = (value: Rag) => { setRagState(value); try { localStorage.setItem('zynckle-ai-rag', value); } catch { /* storage unavailable */ } };
   const [status, setStatus] = useState<Status | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [listQuery, setListQuery] = useState('');
@@ -92,17 +130,19 @@ export default function AIStudio({ projects, notify, onDocumentSaved }: { projec
     });
     let conversationId = activeId;
     try {
-      await streamAI({ conversationId: activeId || undefined, persist: !activeId, message: text, regenerate, mode, context, provider: providerId || undefined, model: model || undefined }, {
+      const result = await streamAI({ conversationId: activeId || undefined, persist: !activeId, message: text, regenerate, mode, context, rag, provider: providerId || undefined, model: model || undefined }, {
         signal: controller.signal,
         onMeta: meta => {
           if (meta.conversationId && !conversationId) {
             conversationId = meta.conversationId; setActiveId(meta.conversationId);
             setParams(() => { const next = new URLSearchParams(); next.set('c', meta.conversationId!); return next; }, { replace: true });
           }
-          setMessages(current => current.map(m => m.id === assistantId ? { ...m, model: meta.model, provider: meta.provider, sources: meta.sources } : m));
+          setMessages(current => current.map(m => m.id === assistantId ? { ...m, model: meta.model, provider: meta.provider, sources: meta.sources, retrieval: meta.retrieval } : m));
         },
         onDelta: delta => setMessages(current => current.map(m => m.id === assistantId ? { ...m, content: m.content + delta } : m)),
       });
+      // Adopt the stored id so feedback and saved action plans attach to the real message.
+      if (result.messageId && !result.messageId.startsWith('msg-local')) setMessages(current => current.map(m => m.id === assistantId ? { ...m, id: result.messageId! } : m));
       api<Conversation[]>('/api/ai/conversations').then(setConversations).catch(() => {});
     } catch (e) {
       if ((e as Error).name === 'AbortError') setMessages(current => current.map(m => m.id === assistantId ? { ...m, content: `${m.content}\n\n_Stopped._` } : m));
@@ -116,7 +156,7 @@ export default function AIStudio({ projects, notify, onDocumentSaved }: { projec
   const saveToDocs = async (message: Message) => {
     try {
       const title = `${conversations.find(c => c.id === activeId)?.title || 'AI response'}`.slice(0, 150);
-      const doc = await api<{ id: string; title: string; content: string; updated: string }>('/api/documents', { body: { title, content: markdownToHtml(message.content), type: 'rich-text', projectId: context.projectId } });
+      const doc = await api<{ id: string; title: string; content: string; updated: string }>('/api/documents', { body: { title, content: markdownToHtml(splitActions(message.content).text), type: 'rich-text', projectId: context.projectId } });
       onDocumentSaved?.(doc); notify('Saved to Documents');
     } catch (e) { notify(errorMessage(e, 'Could not save the document')); }
   };
@@ -131,6 +171,18 @@ export default function AIStudio({ projects, notify, onDocumentSaved }: { projec
     catch (e) { notify(errorMessage(e)); }
   };
 
+  const rate = async (message: Message, rating: number) => {
+    const next = message.feedback === rating ? 0 : rating;
+    setMessages(current => current.map(m => m.id === message.id ? { ...m, feedback: next } : m));
+    try {
+      await api(`/api/ai/messages/${message.id}/feedback`, { method: 'PATCH', body: { rating: next } });
+      if (next) notify(next > 0 ? 'Thanks — marked helpful' : 'Thanks — flagged for review');
+    } catch (e) {
+      setMessages(current => current.map(m => m.id === message.id ? { ...m, feedback: message.feedback } : m));
+      notify(errorMessage(e, 'Feedback could not be saved'));
+    }
+  };
+  const openSource = useCallback((source: Citation | Source) => { if (source.link) navigate(source.link); }, [navigate]);
   const visibleConversations = useMemo(() => conversations.filter(c => c.title.toLowerCase().includes(listQuery.trim().toLowerCase())), [conversations, listQuery]);
   const modeInfo = AI_MODES.find(m => m.id === mode)!;
   const toggleId = (key: 'documentIds' | 'codeFileIds', value: string) => setContext(current => { const list = current[key] || []; return { ...current, [key]: list.includes(value) ? list.filter(x => x !== value) : [...list, value].slice(0, 12) }; });
@@ -158,6 +210,10 @@ export default function AIStudio({ projects, notify, onDocumentSaved }: { projec
           <div className="zy-mode-chips" role="radiogroup" aria-label="Assistant mode">
             {AI_MODES.map(m => <button key={m.id} role="radio" aria-checked={mode === m.id} className={mode === m.id ? 'active' : ''} onClick={() => setMode(m.id)} title={m.hint}><m.icon size={15}/>{m.label}</button>)}
           </div>
+          <div className="zy-rag-toggle" role="radiogroup" aria-label="Workspace knowledge">
+            <span><Library size={13}/> Knowledge</span>
+            {RAG_OPTIONS.map(option => <button key={option.id} role="radio" aria-checked={rag === option.id} className={rag === option.id ? 'active' : ''} onClick={() => setRag(option.id)} title={option.hint}>{option.label}</button>)}
+          </div>
           <button className={`zy-context-toggle ${contextCount ? 'has' : ''}`} onClick={() => setContextOpen(o => !o)} aria-expanded={contextOpen}><SlidersHorizontal size={14}/> Context{contextCount ? ` · ${contextCount}` : ''}</button>
         </header>
         <div className="zy-ai-messages">
@@ -165,21 +221,32 @@ export default function AIStudio({ projects, notify, onDocumentSaved }: { projec
           {!loadingThread && !messages.length && <div className="zy-ai-empty">
             <span className="zy-ai-glyph"><modeInfo.icon size={22}/></span>
             <h2>{modeInfo.label === 'Assistant' ? 'What are you working through?' : modeInfo.hint}</h2>
-            <p>{mode === 'explain' || mode === 'review' ? 'Pick a code project and files in Context, then ask.' : mode === 'docs' ? 'Select a code project or documents as evidence. Unsupported claims are marked as assumptions.' : 'Add a project, documents or code as context for grounded answers.'}</p>
+            <p>{rag === 'off'
+              ? (mode === 'explain' || mode === 'review' ? 'Pick a code project and files in Context, then ask.' : 'Workspace knowledge is off. Add a project, documents or code in Context for grounded answers.')
+              : `Zynckle searches your projects, tasks, documents, code and Drive for every question${rag === 'deep' ? ', rewriting it into several searches first' : ''}, and cites what it used. Selected context is always included too.`}</p>
             <div className="zy-prompt-grid">{modeInfo.prompts.map(prompt => <button key={prompt} onClick={() => { setInput(prompt); composer.current?.focus(); }}>{prompt.trim()}<ArrowUp size={14}/></button>)}</div>
           </div>}
-          {messages.map((message, index) => <article key={message.id} className={`zy-msg zy-msg-${message.role}`}>
-            {message.role === 'user' ? <div className="zy-msg-user-body">{message.content}</div> : <>
+          {messages.map((message, index) => { const live = streaming && index === messages.length - 1; const parts = message.role === 'assistant' ? splitActions(message.content) : null; return <article key={message.id} className={`zy-msg zy-msg-${message.role}`}>
+            {message.role === 'user' || !parts ? <div className="zy-msg-user-body">{message.content}</div> : <>
               <div className="zy-msg-meta"><span className="zy-ai-glyph small"><Sparkles size={12}/></span>ZYNCKLE{message.model && <small>{message.provider} · {message.model}</small>}</div>
-              {message.content ? <Markdown source={message.content} streaming={streaming && index === messages.length - 1}/> : <div className="zy-typing"><i/><i/><i/></div>}
-              {!!message.sources?.length && <div className="zy-sources"><span>Grounded in</span>{message.sources.map(s => <em key={`${s.type}-${s.id}`}>{s.type.includes('code') ? <FileCode2 size={12}/> : s.type === 'project' ? <FolderKanban size={12}/> : <FileText size={12}/>}{s.label}</em>)}</div>}
-              {message.content && !(streaming && index === messages.length - 1) && <div className="zy-msg-actions">
-                <button onClick={() => { navigator.clipboard.writeText(message.content); notify('Response copied'); }}><Copy size={13}/> Copy</button>
+              {message.content ? <Markdown source={parts.text} streaming={live} citations={message.sources} onCite={openSource}/>
+                : <div className="zy-typing-row"><div className="zy-typing"><i/><i/><i/></div>{message.retrieval ? <small>Found {message.retrieval.passages} passage{message.retrieval.passages === 1 ? '' : 's'} in {message.retrieval.tookMs} ms · writing</small> : rag !== 'off' && streaming && index === messages.length - 1 ? <small>{rag === 'deep' ? 'Planning searches and reading your workspace…' : 'Searching your workspace…'}</small> : null}</div>}
+              {parts.pending && live && <div className="zy-typing-row"><div className="zy-typing"><i/><i/><i/></div><small>Preparing proposed changes…</small></div>}
+              {!live && parts.actions.length > 0 && <ActionPlan messageId={message.id} actions={parts.actions} projects={projects} tasks={tasks} canEdit={canEdit} notify={notify}/>}
+              {!live && parts.invalid && <p className="zy-muted-note">The assistant proposed changes in a format that could not be read. Ask it to try again.</p>}
+              {!!message.sources?.length && <SourceList message={message} onOpen={openSource}/>}
+              {message.retrieval && !message.retrieval.passages && !message.sources?.length && message.content && <p className="zy-muted-note">No matching workspace content was found for this question.</p>}
+              {message.content && !live && <div className="zy-msg-actions">
+                <button onClick={() => { navigator.clipboard.writeText(parts.text); notify('Response copied'); }}><Copy size={13}/> Copy</button>
                 {index === messages.length - 1 && lastUser && <button onClick={() => run(lastUser.content, true)} disabled={streaming || !status?.available}><RotateCcw size={13}/> Regenerate</button>}
                 <button onClick={() => saveToDocs(message)}><Save size={13}/> Save to Documents</button>
+                {!message.id.startsWith('pending-') && <span className="zy-feedback" role="group" aria-label="Was this answer helpful?">
+                  <button className={message.feedback === 1 ? 'on' : ''} aria-pressed={message.feedback === 1} onClick={() => rate(message, 1)} title="Helpful"><ThumbsUp size={13}/></button>
+                  <button className={message.feedback === -1 ? 'on' : ''} aria-pressed={message.feedback === -1} onClick={() => rate(message, -1)} title="Not helpful"><ThumbsDown size={13}/></button>
+                </span>}
               </div>}
             </>}
-          </article>)}
+          </article>; })}
           {error && <div className="zy-inline-error" role="alert"><X size={15}/>{error}</div>}
           <div ref={threadEnd}/>
         </div>
@@ -201,7 +268,7 @@ export default function AIStudio({ projects, notify, onDocumentSaved }: { projec
 
       {contextOpen && <aside className="zy-ai-context" aria-label="Context for the assistant">
         <header><div><div className="eyebrow">CONTEXT</div><strong>What Zynckle can read</strong></div><button className="icon-button" aria-label="Close context" onClick={() => setContextOpen(false)}><X size={16}/></button></header>
-        <p className="zy-muted-note">Only items you select are sent to the AI provider, after the server checks your access.</p>
+        <p className="zy-muted-note">{rag === 'off' ? 'Only items you select are sent to the AI provider, after the server checks your access.' : 'Selected items are always included. Knowledge search adds the most relevant passages you can access; nothing private to others is ever retrieved.'} <NavLink to="/ai/knowledge">Browse knowledge</NavLink></p>
         <label className="zy-field">Project<select value={context.projectId || ''} onChange={e => setContext(c => ({ ...c, projectId: e.target.value || undefined }))}><option value="">None</option>{projects.filter(p => typeof p.id === 'string').map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
         <label className="zy-check"><input type="checkbox" checked={Boolean(context.workspace)} onChange={e => setContext(c => ({ ...c, workspace: e.target.checked }))}/> Include a workspace overview</label>
         <div className="zy-field">Documents<div className="zy-pick-list">{docs.length ? docs.map(d => <label key={d.id} className="zy-check"><input type="checkbox" checked={context.documentIds?.includes(d.id) || false} onChange={() => toggleId('documentIds', d.id)}/>{d.name}</label>) : <span className="zy-muted-note">No documents yet</span>}</div></div>

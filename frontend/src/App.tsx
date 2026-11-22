@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { Newspaper, Keyboard, Activity, ArrowRight, Bell, BookOpen, Check, ChevronDown, Code2, Command, FileCode2, FileText, FolderKanban, HardDrive, Info, LayoutDashboard, LogOut, Menu, Moon, MoreHorizontal, PenLine, Plus, Search, Settings, Sparkles, Square, Sun, Users, X, Save } from 'lucide-react';
+import { Newspaper, Keyboard, Activity, ArrowRight, Bell, BookOpen, Check, ChevronDown, Code2, Command, FileCode2, FolderKanban, HardDrive, Info, LayoutDashboard, LogOut, Menu, Moon, MoreHorizontal, PenLine, Plus, Search, Settings, Sparkles, Square, Sun, Users, X, Save } from 'lucide-react';
 import Dashboard from './Dashboard';
 import AuthGate from './AuthScreens';
 import NotificationsPanel from './NotificationsPanel';
@@ -19,6 +19,7 @@ const DriveStudio = lazy(() => import('./DriveStudio'));
 const PreviewStudio = lazy(() => import('./PreviewStudio'));
 const AIWorkshop = lazy(() => import('./AIWorkshop'));
 const AIStudio = lazy(() => import('./AIStudio'));
+const KnowledgeStudio = lazy(() => import('./KnowledgeStudio'));
 const ArchitectureStudio = lazy(() => import('./ArchitectureStudio'));
 const CodeStudio = lazy(() => import('./CodeStudio'));
 const LatexStudio = lazy(() => import('./LatexStudio'));
@@ -119,6 +120,8 @@ export default function App() {
   const notify = useCallback((message: string) => { setToast(message); window.clearTimeout(toastTimer.current); toastTimer.current = window.setTimeout(() => setToast(''), 3200); }, []);
   const clearSession = useCallback(() => { for (const key of ['zynckle-token', 'zynckle-projects', 'zynckle-tasks', 'zynckle-documents', 'zynckle-code-files']) localStorage.removeItem(key); setProjects([]); setTasks([]); setDocs([]); setLoaded(false); setToken(''); }, []);
   useEffect(() => { const expired = () => { clearSession(); }; window.addEventListener('zynckle:session-expired', expired); return () => window.removeEventListener('zynckle:session-expired', expired); }, [clearSession]);
+  // Other modules (e.g. applied AI action plans) announce changes so lists stay current.
+  useEffect(() => { const changed = () => { loadWorkspaceRef.current(); }; window.addEventListener('zynckle:workspace-changed', changed); return () => window.removeEventListener('zynckle:workspace-changed', changed); }, []);
 
   const loadWorkspace = useCallback(async () => {
     if (!token) { setApiStatus('API ready · sign in to sync'); return; }
@@ -138,6 +141,8 @@ export default function App() {
       api<{ usedBytes: number; quotaBytes: number; driver: string }>('/api/storage/usage').then(setStorage).catch(() => {});
     } catch (error) { setApiStatus(errorMessage(error).includes('unreachable') ? 'API offline · start the backend' : 'Workspace data could not be loaded'); }
   }, [token]);
+  const loadWorkspaceRef = useRef(loadWorkspace);
+  loadWorkspaceRef.current = loadWorkspace;
   useEffect(() => { loadWorkspace(); }, [loadWorkspace]);
 
   // Live updates from teammates.
@@ -531,7 +536,9 @@ export default function App() {
         <Route path="/doc" element={<Navigate to="/documents" replace/>}/>
         <Route path="/docs" element={<Navigate to="/documents" replace/>}/>
         <Route path="/document" element={<Navigate to="/documents" replace/>}/>
-        <Route path="/ai" element={<AIStudio projects={projects} notify={notify} onDocumentSaved={doc => setDocs(items => [{ id: doc.id, title: doc.title, body: doc.content, updated: doc.updated }, ...items])}/>}/>
+        <Route path="/ai" element={<AIStudio projects={projects} tasks={tasks} canEdit={canEdit} notify={notify} onDocumentSaved={doc => setDocs(items => [{ id: doc.id, title: doc.title, body: doc.content, updated: doc.updated }, ...items])}/>}/>
+        <Route path="/ai/knowledge" element={<KnowledgeStudio notify={notify}/>}/>
+        <Route path="/knowledge" element={<Navigate to="/ai/knowledge" replace/>}/>
         <Route path="/ai/architecture" element={<ArchitectureStudio projects={projects} notify={notify} canEdit={canEdit}/>}/>
         <Route path="/architecture" element={<Navigate to="/ai/architecture" replace/>}/>
         <Route path="/ai/workshop" element={<AIWorkshop token={token} projects={projects} tasks={tasks} notify={notify} onDocumentSaved={doc => setDocs(items => [{ id: doc.id, title: doc.title, body: doc.content, updated: doc.updated }, ...items.filter(d => d.id !== doc.id)])} onTasksCreated={created => setTasks(items => [...created.map(t => normaliseTask(t as Task)), ...items])}/>}/>

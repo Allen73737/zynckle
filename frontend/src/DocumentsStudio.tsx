@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { BookOpen, Maximize2, Minimize2, Check, ChevronDown, ChevronRight, Folder, FolderPlus, History, Lock, MessageSquare, MoreHorizontal, Plus, Save, Share2, Trash2, X, Pencil, CheckCheck, RotateCcw } from 'lucide-react';
+import { NavLink, useSearchParams } from 'react-router-dom';
+import { BookOpen, Sparkles, Maximize2, Minimize2, Check, ChevronDown, ChevronRight, Folder, FolderPlus, History, Lock, MessageSquare, MoreHorizontal, Plus, Save, Share2, Trash2, X, Pencil, CheckCheck, RotateCcw } from 'lucide-react';
 import ShareDialog from './components/ShareDialog';
 import { api, errorMessage, timeAgo, getToken } from './lib/api';
 import { useRealtimeEvent } from './lib/realtime';
@@ -199,6 +199,7 @@ export default function DocumentsStudio({ onSave, notify, search, account, canEd
           <button className="text-button" onClick={() => setFocus(f => !f)} title="Focus mode (Esc to exit)">{focus ? <><Minimize2 size={14}/> Exit focus</> : <><Maximize2 size={14}/> Focus</>}</button>
           <button className="text-button" onClick={() => setCommentsOpen(o => !o)}><MessageSquare size={14}/> Comments{current.commentCount ? ` · ${current.commentCount}` : ''}</button>
           <button className="text-button" onClick={openHistory}><History size={14}/> History</button>
+          <NavLink className="text-button" to={`/ai?doc=${current.id}&prompt=${encodeURIComponent(`Summarise “${current.title}”, then list open questions and suggested next steps.`)}`} title="Ask Zynckle AI about this document"><Sparkles size={14}/> Ask AI</NavLink>
           {canEdit && <button className="text-button" onClick={() => persist(true)}><Save size={14}/> Save revision</button>}
           <div className="zy-menu-wrap"><button className="icon-button" aria-label="More document actions" onClick={() => setMenu(m => !m)}><MoreHorizontal size={16}/></button>
             {menu && <div className="zy-dropdown right" onMouseLeave={() => setMenu(false)}>

@@ -1,10 +1,13 @@
 package com.zynckle.api.notification;
 
+import com.zynckle.api.security.CurrentUser;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
 
+import java.sql.Timestamp;
 import java.util.*;
 
+/** Per-user notifications. The activity feed lives in WorkspaceController. */
 @RestController
 @RequestMapping("/api")
 public class NotificationController {
@@ -15,46 +18,31 @@ public class NotificationController {
     }
 
     @GetMapping("/notifications")
-    public List<Map<String, Object>> getNotifications(@RequestParam(required = false) String unread) {
-        return jdbc.queryForList("""
-            SELECT id, user_id AS "userId", kind, title, body, read, created_at AS "createdAt"
-            FROM notification
-            ORDER BY created_at DESC
-        """);
+    public List<Map<String, Object>> getNotifications(CurrentUser me, @RequestParam(required = false) String unread) {
+        String filter = unread != null ? " AND read = FALSE" : "";
+        return jdbc.queryForList("SELECT * FROM notification WHERE user_id = ?" + filter + " ORDER BY created_at DESC LIMIT 100", me.userId()).stream().map(n -> {
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("id", n.get("id")); out.put("kind", n.get("kind")); out.put("title", n.get("title")); out.put("body", n.get("body"));
+            out.put("link", Objects.toString(n.get("link"), "")); out.put("read", Boolean.TRUE.equals(n.get("read")));
+            out.put("createdAt", n.get("created_at") instanceof Timestamp t ? t.toInstant().toString() : null);
+            return out;
+        }).toList();
     }
 
     @PostMapping("/notifications/{id}/read")
-    public Map<String, Object> markRead(@PathVariable String id) {
-        jdbc.update("UPDATE notification SET read = TRUE WHERE id = ?", id);
+    public Map<String, Object> markRead(CurrentUser me, @PathVariable String id) {
+        jdbc.update("UPDATE notification SET read = TRUE WHERE id = ? AND user_id = ?", id, me.userId());
         return Map.of("read", true);
     }
 
-    @GetMapping("/activity")
-    public List<Map<String, Object>> getActivity() {
-        List<Map<String, Object>> list = jdbc.queryForList("""
-            SELECT id, actor_id AS "actorId", actor_name AS "actorName",
-                   actor_avatar AS "actorAvatar", verb, entity_type AS "entityType",
-                   summary, created_at AS "createdAt"
-            FROM activity_log
-            ORDER BY created_at DESC LIMIT 50
-        """);
+    @DeleteMapping("/notifications/{id}")
+    public Map<String, Object> delete(CurrentUser me, @PathVariable String id) {
+        jdbc.update("DELETE FROM notification WHERE id = ? AND user_id = ?", id, me.userId());
+        return Map.of("deleted", true);
+    }
 
-        List<Map<String, Object>> result = new ArrayList<>();
-        for (Map<String, Object> row : list) {
-            Map<String, Object> item = new HashMap<>();
-            item.put("id", row.get("id"));
-            item.put("verb", row.get("verb"));
-            item.put("entityType", row.get("entityType"));
-            item.put("summary", row.get("summary"));
-            item.put("createdAt", row.get("createdAt"));
-            item.put("actor", Map.of(
-                "id", row.get("actorId") != null ? row.get("actorId") : "usr-local",
-                "name", row.get("actorName") != null ? row.get("actorName") : "Studio Lead",
-                "email", "lead@zynckle.local",
-                "avatar", row.get("actorAvatar") != null ? row.get("actorAvatar") : "SL"
-            ));
-            result.add(item);
-        }
-        return result;
+    @PostMapping("/notifications/read-all")
+    public Map<String, Object> markAllRead(CurrentUser me) {
+        return Map.of("updated", jdbc.update("UPDATE notification SET read = TRUE WHERE user_id = ? AND read = FALSE", me.userId()));
     }
 }

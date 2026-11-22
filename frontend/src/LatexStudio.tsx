@@ -727,7 +727,6 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
     if (editor) {
       const currentText = editor.state.doc.toString();
       if (!currentText.includes(c.key)) {
-        const bibEntry = `\n% Citation: ${c.title}\n${c.bibtex}\n`;
         const endDoc = currentText.lastIndexOf('\\end{document}');
         if (endDoc !== -1) {
           editor.dispatch({

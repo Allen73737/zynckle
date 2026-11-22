@@ -101,7 +101,7 @@ public class DatabaseInitializer implements CommandLineRunner {
                 id VARCHAR(64) PRIMARY KEY,
                 workspace_id VARCHAR(64) NOT NULL,
                 title VARCHAR(240) NOT NULL,
-                content CLOB,
+                content TEXT,
                 type VARCHAR(32) DEFAULT 'rich-text',
                 owner_id VARCHAR(64),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -148,6 +148,48 @@ public class DatabaseInitializer implements CommandLineRunner {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """);
+
+        // ---- Accounts, sessions and team management ----
+        jdbc.execute("ALTER TABLE app_user ADD COLUMN IF NOT EXISTS active_workspace_id VARCHAR(64)");
+        jdbc.execute("""
+            CREATE TABLE IF NOT EXISTS user_session (
+                id VARCHAR(32) PRIMARY KEY,
+                user_id VARCHAR(64) NOT NULL,
+                token_hash CHAR(64) NOT NULL UNIQUE,
+                user_agent VARCHAR(200),
+                ip VARCHAR(64),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP NOT NULL
+            )
+        """);
+        jdbc.execute("CREATE INDEX IF NOT EXISTS user_session_user_idx ON user_session(user_id)");
+        jdbc.execute("""
+            CREATE TABLE IF NOT EXISTS one_time_token (
+                token_hash CHAR(64) PRIMARY KEY,
+                kind VARCHAR(16) NOT NULL,
+                user_id VARCHAR(64) NOT NULL,
+                expires_at TIMESTAMP NOT NULL
+            )
+        """);
+        jdbc.execute("""
+            CREATE TABLE IF NOT EXISTS invitation (
+                id VARCHAR(64) PRIMARY KEY,
+                workspace_id VARCHAR(64) NOT NULL,
+                email VARCHAR(320) NOT NULL,
+                role VARCHAR(16) NOT NULL,
+                token_hash CHAR(64) NOT NULL UNIQUE,
+                invite_url VARCHAR(200) NOT NULL,
+                invited_by VARCHAR(64) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP NOT NULL
+            )
+        """);
+        jdbc.execute("ALTER TABLE activity_log ADD COLUMN IF NOT EXISTS audit BOOLEAN DEFAULT FALSE");
+        jdbc.execute("ALTER TABLE activity_log ADD COLUMN IF NOT EXISTS project_id VARCHAR(64)");
+        jdbc.execute("ALTER TABLE notification ADD COLUMN IF NOT EXISTS workspace_id VARCHAR(64)");
+        jdbc.execute("ALTER TABLE notification ADD COLUMN IF NOT EXISTS link VARCHAR(500)");
+        jdbc.execute("ALTER TABLE task ADD COLUMN IF NOT EXISTS created_by VARCHAR(64)");
 
         // Seed default demo user and workspace if table is empty
         Integer userCount = jdbc.queryForObject("SELECT COUNT(*) FROM app_user", Integer.class);

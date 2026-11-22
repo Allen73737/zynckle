@@ -188,10 +188,29 @@ Press <kbd>C</kbd> from anywhere in the workspace to launch the **Quick Capture 
 - **Dual Perspective**: Toggle between **"My Desk"** (personal obligations) and **"The Newsroom"** (workspace-wide momentum).
 
 ### 3. Workspace-Aware Contextual AI
-- **Provider Agnostic**: Seamlessly stream intelligence via **Groq** (Llama 3.3 70B default), **Google Gemini** (Gemini 2.0 Flash / Pro), or **OpenRouter**.
+- **Provider Agnostic**: Stream from **Groq** (Llama 3.3 70B default), **Google Gemini**, **OpenRouter**, or any **OpenAI-compatible** server (Ollama, LM Studio, vLLM, OpenAI) via `CUSTOM_AI_URL` + `CUSTOM_AI_MODEL`.
+- **Workspace Knowledge (RAG)**: Every question searches projects, tasks and their comments, documents, LaTeX papers, code files, text files in Drive and architecture designs. Answers cite their sources inline (`[1]`, `[2]`) as clickable chips that open the exact document, task or code lines. See [Workspace Knowledge Engine](#workspace-knowledge-engine-rag).
 - **Contextual Knowledge Graph**: Selectively feed active project tasks, live document content, or codebase files into AI prompts.
+- **Actions you approve**: ask the assistant to plan or reorganise work and it proposes concrete changes (create tasks, update status, priority, due date or assignee, create projects and documents) as a reviewable plan. Nothing changes until you press Apply; each change runs with your permissions and is logged. Viewers are never offered actions.
+- **Daily brief and project health**: the dashboard shows overdue, due-soon, assigned and stalled work computed from real task data (`/api/insights`), and the assistant can narrate it as a short daily brief.
+- **Answer feedback**: thumbs up/down on every answer; admins review flagged answers (with the question and how many sources were used) on the Knowledge page.
 - **Architecture Designer**: Generates comprehensive 12-section technical architectural specifications accompanied by interactive **Mermaid diagrams** and **React Flow** component graphs.
 - **Docs & Planning Workshop**: Automatically produces Software Requirements Specifications (SRS), API documentation, and database schemas with explicit source citations.
+
+### Workspace Knowledge Engine (RAG)
+
+Implemented in Spring Boot (`backend/src/main/java/com/zynckle/api/ai/rag/RagService.java`, with chat streaming in `AssistantController`), browsable at `/ai/knowledge`. Indexes projects, tasks and comments, documents, LaTeX papers, website previews, code project files and text files in Drive. The optional Node API in `backend/lib/rag.mjs` implements the same contract.
+
+| Stage | How it works |
+| :--- | :--- |
+| **Indexing** | Content is chunked structurally: prose by heading and paragraph (with overlap, keeping the heading path), code in line windows that break before declarations (keeping line numbers). The index syncs lazily on each query and re-chunks only sources whose fingerprint changed, so edits are searchable immediately. |
+| **Keyword ranking** | BM25 over a code-aware tokenizer that splits `camelCase` / `snake_case` identifiers and keeps them whole, so `roundCents` and "round cents" both match. Always on, no setup required. |
+| **Semantic ranking** | Optional. On automatically with `GEMINI_API_KEY`, or with any OpenAI-compatible `EMBEDDING_URL`. Vectors are cached by content hash in `data/rag-vectors.json`, so unchanged text is never re-embedded. Dense hits must clear a similarity floor unless they also matched by keyword. |
+| **Fusion** | Reciprocal rank fusion of both rankings with a small freshness boost for recently updated content, at most 3 passages per source, adjacent passages merged. |
+| **Re-ranking** | Deep mode asks the model to order the top 20 candidates by usefulness and drops the ones it judges irrelevant before answering. |
+| **Assistant modes** | **Auto** searches with the latest message (plus the previous one for short follow-ups). **Deep** first asks the model to rewrite the conversation into a standalone question and several search queries. **Off** uses only the context you select. |
+| **Permissions** | Retrieval is scoped to the signed-in user's workspace on every query, and private Drive files are never indexed. |
+| **Tests** | `npm test` in `backend/` boots the packaged Spring Boot jar against a mock provider and checks indexing, hybrid ranking, citations, deep mode and conversation persistence. Build the jar first with `mvnw -o -DskipTests package`. |
 
 ### 4. Drive & Cloud Storage
 - **Hybrid Storage Driver**: Stream files directly to local disk or deploy to any S3-compatible cloud object store (Cloudflare R2, AWS S3, MinIO) via AWS Signature Version 4 (SigV4).
@@ -239,6 +258,10 @@ The Spring Boot backend exposes a clean, unified REST interface under `/api/*`:
 | `/api/previews` | `GET`, `POST` | Responsive website preview registry |
 | `/api/previews/check` | `GET` | Target URL reachability and iframe header check |
 | `/api/ai/status` | `GET` | Active AI provider configuration and model matrix |
+| `/api/ai/stream` | `POST` | Server-sent events chat; `rag: "off" \| "auto" \| "deep"` controls retrieval, and the `meta` frame lists numbered sources |
+| `/api/ai/knowledge` | `GET` | Knowledge index status: sources, passages, embedding progress |
+| `/api/ai/knowledge/search` | `GET` | Hybrid search, `?q=&types=&limit=`, permission-filtered |
+| `/api/ai/knowledge/reindex` | `POST` | Rebuild the workspace index from scratch |
 | `/api/storage/usage` | `GET` | Workspace storage quota telemetry |
 | `/api/activity` | `GET` | Global workspace audit trail and activity feed |
 
@@ -296,6 +319,15 @@ Zynckle treats user privacy and data sovereignty as non-negotiable architectural
 5. **ZIP Traversal & Bomb Guard**: File extraction routines inspect entry paths to prevent path traversal attacks (`../`) and abort processing if uncompressed payloads exceed safe workspace quota boundaries.
 
 ---
+
+## Accounts, Roles and Workspaces (Spring Boot)
+
+- **Sign-in**: passwords are hashed with bcrypt; sessions are random bearer tokens stored only as SHA-256 hashes, expire after 14 days and can be revoked individually from Settings. Every `/api` route except sign-in, password reset and health checks requires a session.
+- **Workspaces**: each request is scoped to the user's active workspace; data from other workspaces returns 404. Users can create, switch, leave and (as owner) delete workspaces.
+- **Roles**: Owner, Admin, Member and Viewer, enforced on the server. Viewers can read but not change content; admins manage members and invites; only the owner can grant admin or transfer ownership.
+- **Invites**: admins create invite links (7-day expiry) bound to the invitee's email address.
+- **Upgrading an existing install**: data created before sign-in existed belongs to the built-in local account. The first account you register adopts it, so nothing is lost.
+- **Email**: no SMTP integration is configured. Reset, verification and invite links are written to the API log and, in development, returned in the API response.
 
 ## Getting Started
 

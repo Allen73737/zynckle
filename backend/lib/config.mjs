@@ -55,6 +55,8 @@ export const config = {
     groq: { key: env.GROQ_API_KEY || '', model: env.GROQ_MODEL || 'llama-3.3-70b-versatile' },
     gemini: { key: env.GEMINI_API_KEY || '', model: env.GEMINI_MODEL || 'gemini-2.5-flash' },
     openrouter: { key: env.OPENROUTER_API_KEY || '', model: env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct' },
+    // Any OpenAI-compatible server: Ollama, LM Studio, vLLM, OpenAI itself. The key is optional.
+    custom: { url: (env.CUSTOM_AI_URL || '').replace(/\/$/, ''), key: env.CUSTOM_AI_API_KEY || '', model: env.CUSTOM_AI_MODEL || '', label: env.CUSTOM_AI_LABEL || 'OpenAI-compatible' },
   },
   google: { clientId: env.GOOGLE_CLIENT_ID || '', clientSecret: env.GOOGLE_CLIENT_SECRET || '' },
   storage: {

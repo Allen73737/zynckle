@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Check, Copy, ExternalLink, FileCode2, FileText, Plus, Trash2, X } from 'lucide-react';
+import { Check, Copy, FileCode2, FileText, Plus, Trash2, X } from 'lucide-react';
 import { api, errorMessage } from '../lib/api';
 
 export default function ScratchpadDrawer({

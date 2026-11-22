@@ -45,7 +45,6 @@ export async function extractPdfText(buffer: ArrayBuffer): Promise<{ text: strin
   if (authorMatch) metadata.author = unescapePdf(authorMatch[1]);
 
   // Scan for stream ... endstream blocks
-  let searchPos = 0;
   const streamRegex = /stream[\r\n]+([\s\S]*?)[\r\n]+endstream/g;
   let match: RegExpExecArray | null;
 

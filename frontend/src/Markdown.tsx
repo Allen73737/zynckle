@@ -27,12 +27,49 @@ export async function renderMermaid(definition: string) {
   return DOMPurify.sanitize(svg, { USE_PROFILES: { svg: true, svgFilters: true }, ADD_TAGS: ['foreignObject'], HTML_INTEGRATION_POINTS: { foreignobject: true } });
 }
 
+export type Citation = { n?: number; label: string; location?: string | null; snippet?: string; link?: string | null };
+
+/** Turn bracketed citation markers ([2], [1][3]) in prose into chips; code is left alone. */
+function linkCitations(root: HTMLElement, citations: Citation[], onCite?: (citation: Citation) => void) {
+  const byNumber = new Map(citations.filter(c => c.n).map(c => [c.n!, c]));
+  if (!byNumber.size) return;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: node => (node.parentElement?.closest('pre, code, .md-cite') || !/\[\d{1,2}\]/.test(node.nodeValue || '') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+  });
+  const nodes: Text[] = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode as Text);
+  for (const node of nodes) {
+    const fragment = document.createDocumentFragment();
+    let last = 0;
+    const text = node.nodeValue || '';
+    for (const match of text.matchAll(/\[(\d{1,2})\]/g)) {
+      const citation = byNumber.get(Number(match[1]));
+      if (!citation) continue;
+      fragment.append(text.slice(last, match.index));
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'md-cite';
+      chip.textContent = match[1];
+      chip.title = `${citation.label}${citation.location ? ` · ${citation.location}` : ''}${citation.snippet ? `
+
+${citation.snippet}` : ''}`;
+      chip.setAttribute('aria-label', `Source ${match[1]}: ${citation.label}`);
+      chip.onclick = () => onCite?.(citation);
+      fragment.append(chip);
+      last = match.index! + match[0].length;
+    }
+    if (!last) continue;
+    fragment.append(text.slice(last));
+    node.replaceWith(fragment);
+  }
+}
+
 export function markdownToHtml(source: string) {
   const html = marked.parse(source, { async: false }) as string;
   return DOMPurify.sanitize(html, { ADD_ATTR: ['target'] });
 }
 
-function MarkdownView({ source, streaming = false, className = '' }: { source: string; streaming?: boolean; className?: string }) {
+function MarkdownView({ source, streaming = false, className = '', citations, onCite }: { source: string; streaming?: boolean; className?: string; citations?: Citation[]; onCite?: (citation: Citation) => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const html = useMemo(() => markdownToHtml(source), [source]);
 
@@ -85,7 +122,8 @@ function MarkdownView({ source, streaming = false, className = '' }: { source: s
         pre.append(button);
       }
     });
-  }, [html, streaming]);
+    if (citations?.length) linkCitations(root, citations, onCite);
+  }, [html, streaming, citations, onCite]);
 
   return <div ref={ref} className={`md ${className}`} dangerouslySetInnerHTML={{ __html: html }}/>;
 }

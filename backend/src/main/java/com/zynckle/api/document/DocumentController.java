@@ -1,5 +1,9 @@
 package com.zynckle.api.document;
 
+import com.zynckle.api.common.Activity;
+import com.zynckle.api.common.ApiException;
+import com.zynckle.api.common.Validate;
+import com.zynckle.api.security.CurrentUser;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -12,66 +16,84 @@ import java.util.*;
 @RequestMapping("/api")
 public class DocumentController {
     private final JdbcTemplate jdbc;
+    private final Activity activity;
 
-    public DocumentController(JdbcTemplate jdbc) {
+    public DocumentController(JdbcTemplate jdbc, Activity activity) {
         this.jdbc = jdbc;
+        this.activity = activity;
+    }
+
+    private static String text(Object value) {
+        if (value instanceof java.sql.Clob clob) {
+            try { return clob.getSubString(1, (int) clob.length()); } catch (Exception e) { return ""; }
+        }
+        return value == null ? "" : String.valueOf(value);
+    }
+
+    private static Map<String, Object> view(Map<String, Object> d) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("id", d.get("id"));
+        out.put("title", d.get("title"));
+        out.put("content", text(d.get("content")));
+        out.put("type", d.get("type"));
+        out.put("ownerId", d.get("owner_id"));
+        out.put("visibility", "workspace");
+        Object updated = d.get("updated_at");
+        out.put("updated", updated instanceof java.sql.Timestamp t ? t.toInstant().toString() : String.valueOf(updated));
+        return out;
+    }
+
+    private Map<String, Object> find(CurrentUser me, String id) {
+        return jdbc.queryForList("SELECT * FROM document WHERE id = ? AND workspace_id = ? AND type <> 'latex-template'", id, me.workspaceId())
+            .stream().findFirst().map(DocumentController::view).orElseThrow(() -> new ApiException(404, "Document not found"));
     }
 
     @GetMapping("/documents")
-    public List<Map<String, Object>> getDocuments() {
-        return jdbc.queryForList("""
-            SELECT id, title, content, type, updated_at AS updated
-            FROM document ORDER BY updated_at DESC
-        """);
+    public List<Map<String, Object>> getDocuments(CurrentUser me) {
+        return jdbc.queryForList("SELECT * FROM document WHERE workspace_id = ? AND type <> 'latex-template' ORDER BY updated_at DESC", me.workspaceId())
+            .stream().map(DocumentController::view).toList();
     }
 
+    /** Create, or update when an id of a document in this workspace is given. */
     @PostMapping("/documents")
-    public Map<String, Object> saveDocument(@RequestBody Map<String, Object> body) {
-        String id = (String) body.get("id");
-        if (id == null || id.isBlank()) {
-            id = "doc-" + System.currentTimeMillis();
+    public Map<String, Object> saveDocument(CurrentUser me, @RequestBody Map<String, Object> body) {
+        me.requireEdit();
+        String title = Validate.str(body, "title", "Title", 1, 240);
+        Object raw = body.getOrDefault("content", "");
+        String content = raw == null ? "" : String.valueOf(raw);
+        if (content.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 2_000_000) throw new ApiException(413, "Document content is limited to 2 MB");
+        String type = "latex".equals(body.get("type")) ? "latex" : "rich-text";
+        String id = body.get("id") instanceof String given && !given.isBlank() ? given : null;
+        if (id != null && !jdbc.queryForList("SELECT id FROM document WHERE id = ? AND workspace_id = ?", id, me.workspaceId()).isEmpty()) {
+            jdbc.update("UPDATE document SET title = ?, content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND workspace_id = ?", title, content, id, me.workspaceId());
+            return find(me, id);
         }
-        String title = (String) body.getOrDefault("title", "Untitled Document");
-        String content = (String) body.getOrDefault("content", "");
-        String type = (String) body.getOrDefault("type", "rich-text");
-
-        List<Map<String, Object>> exists = jdbc.queryForList("SELECT id FROM document WHERE id = ?", id);
-        if (exists.isEmpty()) {
-            jdbc.update("""
-                INSERT INTO document (id, workspace_id, title, content, type, owner_id)
-                VALUES (?, 'ws-local', ?, ?, ?, 'usr-local')
-            """, id, title, content, type);
-        } else {
-            jdbc.update("""
-                UPDATE document SET title = ?, content = ?, type = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            """, title, content, type, id);
-        }
-
-        Map<String, Object> doc = new HashMap<>();
-        doc.put("id", id);
-        doc.put("title", title);
-        doc.put("content", content);
-        doc.put("type", type);
-        doc.put("updated", new Date().toString());
-        return doc;
+        if (id != null && !jdbc.queryForList("SELECT id FROM document WHERE id = ?", id).isEmpty()) throw new ApiException(404, "Document not found");
+        String newId = id != null && id.matches("[\\w-]{1,64}") ? id : UUID.randomUUID().toString();
+        jdbc.update("INSERT INTO document (id, workspace_id, title, content, type, owner_id) VALUES (?, ?, ?, ?, ?, ?)", newId, me.workspaceId(), title, content, type, me.userId());
+        activity.log(me, "created document", "document", title);
+        return find(me, newId);
     }
 
     @GetMapping("/documents/{id}")
-    public Map<String, Object> getDocument(@PathVariable String id) {
-        List<Map<String, Object>> list = jdbc.queryForList("""
-            SELECT id, title, content, type, updated_at AS updated
-            FROM document WHERE id = ?
-        """, id);
-        if (!list.isEmpty()) {
-            return list.get(0);
-        }
-        return Map.of("id", id, "title", "Document", "content", "", "type", "rich-text");
+    public Map<String, Object> getDocument(CurrentUser me, @PathVariable String id) { return find(me, id); }
+
+    @PatchMapping("/documents/{id}")
+    public Map<String, Object> patchDocument(CurrentUser me, @PathVariable String id, @RequestBody Map<String, Object> body) {
+        me.requireEdit();
+        find(me, id);
+        if (body.containsKey("title")) jdbc.update("UPDATE document SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", Validate.str(body, "title", "Title", 1, 240), id);
+        if (body.get("content") instanceof String content) jdbc.update("UPDATE document SET content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", content, id);
+        return find(me, id);
     }
 
     @DeleteMapping("/documents/{id}")
-    public Map<String, Object> deleteDocument(@PathVariable String id) {
-        jdbc.update("DELETE FROM document WHERE id = ?", id);
+    public Map<String, Object> deleteDocument(CurrentUser me, @PathVariable String id) {
+        me.requireEdit();
+        Map<String, Object> doc = find(me, id);
+        if (!me.userId().equals(doc.get("ownerId")) && !me.isAdmin()) throw new ApiException(403, "Only the author or a workspace admin can delete this document");
+        jdbc.update("DELETE FROM document WHERE id = ? AND workspace_id = ?", id, me.workspaceId());
+        activity.log(me, "deleted document", "document", String.valueOf(doc.get("title")), true, null);
         return Map.of("deleted", true);
     }
 
@@ -213,45 +235,30 @@ public class DocumentController {
     }
 
     @GetMapping("/latex/templates")
-    public List<Map<String, Object>> getLatexTemplates() {
-        return jdbc.queryForList("""
-            SELECT id, title, content, updated_at AS updated
-            FROM document WHERE type = 'latex-template' ORDER BY updated_at DESC
-        """);
+    public List<Map<String, Object>> getLatexTemplates(CurrentUser me) {
+        return jdbc.queryForList("SELECT * FROM document WHERE workspace_id = ? AND type = 'latex-template' ORDER BY updated_at DESC", me.workspaceId())
+            .stream().map(DocumentController::view).toList();
     }
 
     @PostMapping("/latex/templates")
-    public Map<String, Object> saveLatexTemplate(@RequestBody Map<String, Object> body) {
-        String id = (String) body.get("id");
-        if (id == null || id.isBlank()) id = "tmpl-" + System.currentTimeMillis();
-        String title = (String) body.getOrDefault("title", "Custom Template");
-        String content = (String) body.getOrDefault("content", "");
-
-        List<Map<String, Object>> exists = jdbc.queryForList("SELECT id FROM document WHERE id = ?", id);
-        if (exists.isEmpty()) {
-            jdbc.update("""
-                INSERT INTO document (id, workspace_id, title, content, type, owner_id)
-                VALUES (?, 'ws-local', ?, ?, 'latex-template', 'usr-local')
-            """, id, title, content);
+    public Map<String, Object> saveLatexTemplate(CurrentUser me, @RequestBody Map<String, Object> body) {
+        me.requireEdit();
+        String title = Validate.str(body, "title", "Template name", 1, 240);
+        String content = String.valueOf(body.getOrDefault("content", ""));
+        String id = body.get("id") instanceof String given && !given.isBlank() ? given : null;
+        if (id != null && !jdbc.queryForList("SELECT id FROM document WHERE id = ? AND workspace_id = ? AND type = 'latex-template'", id, me.workspaceId()).isEmpty()) {
+            jdbc.update("UPDATE document SET title = ?, content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", title, content, id);
         } else {
-            jdbc.update("""
-                UPDATE document SET title = ?, content = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            """, title, content, id);
+            id = UUID.randomUUID().toString();
+            jdbc.update("INSERT INTO document (id, workspace_id, title, content, type, owner_id) VALUES (?, ?, ?, ?, 'latex-template', ?)", id, me.workspaceId(), title, content, me.userId());
         }
-
-        Map<String, Object> res = new HashMap<>();
-        res.put("id", id);
-        res.put("title", title);
-        res.put("content", content);
-        res.put("type", "latex-template");
-        res.put("updated", new Date().toString());
-        return res;
+        return jdbc.queryForList("SELECT * FROM document WHERE id = ?", id).stream().findFirst().map(DocumentController::view).orElseThrow();
     }
 
     @DeleteMapping("/latex/templates/{id}")
-    public Map<String, Object> deleteLatexTemplate(@PathVariable String id) {
-        jdbc.update("DELETE FROM document WHERE id = ? AND type = 'latex-template'", id);
+    public Map<String, Object> deleteLatexTemplate(CurrentUser me, @PathVariable String id) {
+        me.requireEdit();
+        jdbc.update("DELETE FROM document WHERE id = ? AND workspace_id = ? AND type = 'latex-template'", id, me.workspaceId());
         return Map.of("deleted", true);
     }
 }

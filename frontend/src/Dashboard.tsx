@@ -4,6 +4,7 @@ import { NavLink } from 'react-router-dom';
 import { api, formatBytes, localDate, timeAgo } from './lib/api';
 import { useRealtimeEvent } from './lib/realtime';
 import { ActivityFeed, type ActivityItem, type Project, type Task } from './ProjectViews';
+import DailyBrief from './DailyBrief';
 
 type Doc = { id: string; title: string; body: string; updated: string };
 type RecentFile = { id: string; name: string; sizeBytes: number; createdAt: string };
@@ -241,6 +242,8 @@ export default function Dashboard({
           </ol>
         </section>
       )}
+
+      {loaded && projects.length > 0 && <DailyBrief/>}
 
       {/* Four Balanced Key Metric Cards */}
       <section className="overview-bento-grid">

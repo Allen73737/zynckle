@@ -13,6 +13,10 @@ spring:
       ddl-auto: none
   flyway:
     enabled: ${FLYWAY_ENABLED:false}
+  mvc:
+    async:
+      # AI answers stream over server-sent events; allow long generations.
+      request-timeout: 180s
 management:
   endpoints:
     web:

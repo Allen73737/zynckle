@@ -41,7 +41,7 @@ function zip(entries) {
 before(async () => {
   dir = await mkdtemp(join(tmpdir(), 'zynckle-test-'));
   server = spawn(process.execPath, [resolve(import.meta.dirname, '..', 'server.mjs')], {
-    env: { ...process.env, PORT: String(port), ZYNCKLE_DATA_FILE: join(dir, 'workspace.json'), ZYNCKLE_ENV_FILE: join(dir, 'none.env'), GROQ_API_KEY: '', GEMINI_API_KEY: '', OPENROUTER_API_KEY: '', R2_ENDPOINT: '', AUTH_RATE_PER_MINUTE: '500' },
+    env: { ...process.env, PORT: String(port), ZYNCKLE_DATA_FILE: join(dir, 'workspace.json'), ZYNCKLE_ENV_FILE: join(dir, 'none.env'), GROQ_API_KEY: '', GEMINI_API_KEY: '', OPENROUTER_API_KEY: '', CUSTOM_AI_URL: '', EMBEDDING_URL: '', R2_ENDPOINT: '', AUTH_RATE_PER_MINUTE: '500' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   await new Promise((ok, fail) => {
