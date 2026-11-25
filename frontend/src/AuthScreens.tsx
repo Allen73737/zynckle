@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import { ArrowLeft, Eye, EyeOff, Moon, Sparkles, Sun } from 'lucide-react';
 import { api, errorMessage } from './lib/api';
@@ -30,7 +31,7 @@ export default function AuthGate({ onSuccess, theme, onTheme }: { onSuccess: (to
   const token = params.get('token') || '';
 
   useEffect(() => {
-    api<{ google: boolean }>('/api/auth/providers').then(p => setGoogle(p.google)).catch(() => {});
+    api<{ google: boolean }>('/api/auth/providers').then(p => setGoogle(p.google)).catch(() => { });
     const hash = new URLSearchParams(location.hash.slice(1)).get('token');
     if (hash) { history.replaceState({}, '', '/'); onSuccess(hash); }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -74,26 +75,26 @@ export default function AuthGate({ onSuccess, theme, onTheme }: { onSuccess: (to
   const heading = { register: <>Make room for <em>good work.</em></>, login: <>Welcome <em>back.</em></>, forgot: <>Reset your <em>password.</em></>, reset: <>Choose a new <em>password.</em></>, verify: <>Verifying your <em>email.</em></> }[mode];
   const sub = { register: 'A calmer place to plan, write, build and bring people together.', login: 'Pick up exactly where you left off.', forgot: 'Enter the email you use for Zynckle and we will create a reset link.', reset: 'Use at least 10 characters with a number or symbol. Other sessions will be signed out.', verify: 'One moment while we confirm your address.' }[mode];
 
-  return <div className="auth-screen"><button className="icon-button auth-theme" onClick={onTheme} aria-label="Toggle theme">{theme === 'dark' ? <Sun size={18}/> : <Moon size={18}/>}</button>
+  return <div className="auth-screen"><button className="icon-button auth-theme" onClick={onTheme} aria-label="Toggle theme">{theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button>
     <section className="auth-panel"><a className="brand" href="/"><span className="brand-mark">z</span><span>zynckle</span></a><div className="eyebrow">ONE WORKSPACE. EVERYTHING CONNECTED.</div><h1>{heading}</h1><p className="welcome-sub">{sub}</p>
       {mode === 'verify' ? <div className="auth-form">{busy && <p className="welcome-sub">Checking your link…</p>}{info && <p className="zy-auth-info" role="status">{info}</p>}{error && <p className="auth-error" role="alert">{error}</p>}<button className="button-primary auth-submit" onClick={() => switchMode('login')}>Continue to sign in</button></div>
         : <form onSubmit={submit} className="auth-form">
-          {mode === 'register' && <label>Your name<input required autoComplete="name" value={name} onChange={e => setName(e.target.value)} placeholder="Alex Morgan" maxLength={100}/></label>}
-          {mode !== 'reset' && <label>Email address<input required type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com"/></label>}
+          {mode === 'register' && <label>Your name<input required autoComplete="name" value={name} onChange={e => setName(e.target.value)} placeholder="Alex Morgan" maxLength={100} /></label>}
+          {mode !== 'reset' && <label>Email address<input required type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" /></label>}
           {mode !== 'forgot' && <label><span className="zy-label-row">Password{mode === 'login' && <button type="button" className="zy-link-button" onClick={() => switchMode('forgot')}>Forgot password?</button>}</span>
-            <span className="zy-password"><input required type={show ? 'text' : 'password'} minLength={mode === 'login' ? 1 : 10} maxLength={200} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} value={password} onChange={e => setPassword(e.target.value)} placeholder={mode === 'login' ? 'Your password' : 'At least 10 characters'}/><button type="button" onClick={() => setShow(s => !s)} aria-label={show ? 'Hide password' : 'Show password'}>{show ? <EyeOff size={15}/> : <Eye size={15}/>}</button></span>
-            {mode !== 'login' && password && <span className="zy-strength" aria-live="polite"><i className={`s${score}`}/><small>{['Too short', 'Weak', 'Fair', 'Good', 'Strong'][score]}</small></span>}</label>}
-          {error && <div className="auth-error" role="alert"><p>{error}</p><button type="button" className="button-secondary auth-submit zy-demo-btn" onClick={enterDemo}><Sparkles size={14}/> Enter Instant Workspace Mode</button></div>}
+            <span className="zy-password"><input required type={show ? 'text' : 'password'} minLength={mode === 'login' ? 1 : 10} maxLength={200} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} value={password} onChange={e => setPassword(e.target.value)} placeholder={mode === 'login' ? 'Your password' : 'At least 10 characters'} /><button type="button" onClick={() => setShow(s => !s)} aria-label={show ? 'Hide password' : 'Show password'}>{show ? <EyeOff size={15} /> : <Eye size={15} />}</button></span>
+            {mode !== 'login' && password && <span className="zy-strength" aria-live="polite"><i className={`s${score}`} /><small>{['Too short', 'Weak', 'Fair', 'Good', 'Strong'][score]}</small></span>}</label>}
+          {error && <div className="auth-error" role="alert"><p>{error}</p><button type="button" className="button-secondary auth-submit zy-demo-btn" onClick={enterDemo}><Sparkles size={14} /> Enter Instant Workspace Mode</button></div>}
           {info && <p className="zy-auth-info" role="status">{info}</p>}
           {devLink && <a className="zy-dev-link" href={devLink}>Development link: open the reset page →</a>}
           <button className="button-primary auth-submit" disabled={busy || (mode === 'reset' && !token)}>{busy ? 'Please wait…' : { register: 'Create your workspace', login: 'Sign in', forgot: 'Create reset link', reset: 'Set new password', verify: '' }[mode]}</button>
           <div className="zy-or"><span>or</span></div>
-          <button type="button" className="button-secondary auth-submit zy-instant-btn" onClick={enterDemo}><Sparkles size={14}/> Instant Demo Workspace (No sign-in required)</button>
+          <button type="button" className="button-secondary auth-submit zy-instant-btn" onClick={enterDemo}><Sparkles size={14} /> Instant Demo Workspace (No sign-in required)</button>
           {mode === 'reset' && !token && <p className="auth-error">This reset link is incomplete. Request a new one.</p>}
-          {google && (mode === 'login' || mode === 'register') && <button type="button" className="button-secondary auth-submit" onClick={googleSignIn}><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.7 3-4.3 3-7.3zM12 22c2.7 0 5-.9 6.6-2.4l-3.2-2.5c-.9.6-2 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3.1v2.6A10 10 0 0 0 12 22zm-5.6-8a6 6 0 0 1 0-3.9V7.5H3.1a10 10 0 0 0 0 9zM12 6c1.5 0 2.8.5 3.8 1.5l2.9-2.9A10 10 0 0 0 3.1 7.5l3.3 2.6C7.2 7.8 9.4 6 12 6z"/></svg> Continue with Google</button>}
+          {google && (mode === 'login' || mode === 'register') && <button type="button" className="button-secondary auth-submit" onClick={googleSignIn}><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.7 3-4.3 3-7.3zM12 22c2.7 0 5-.9 6.6-2.4l-3.2-2.5c-.9.6-2 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3.1v2.6A10 10 0 0 0 12 22zm-5.6-8a6 6 0 0 1 0-3.9V7.5H3.1a10 10 0 0 0 0 9zM12 6c1.5 0 2.8.5 3.8 1.5l2.9-2.9A10 10 0 0 0 3.1 7.5l3.3 2.6C7.2 7.8 9.4 6 12 6z" /></svg> Continue with Google</button>}
         </form>}
       {mode === 'register' || mode === 'login' ? <button className="auth-switch" onClick={() => switchMode(mode === 'register' ? 'login' : 'register')}>{mode === 'register' ? 'Already have an account? Sign in' : 'New to Zynckle? Create an account'}</button>
-        : mode !== 'verify' && <button className="auth-switch" onClick={() => switchMode('login')}><ArrowLeft size={12}/> Back to sign in</button>}
+        : mode !== 'verify' && <button className="auth-switch" onClick={() => switchMode('login')}><ArrowLeft size={12} /> Back to sign in</button>}
       <p className="auth-foot">Passwords are hashed with scrypt; sessions can be revoked from Settings. Keep the API behind HTTPS before allowing remote access.</p></section>
-    <aside className="auth-aside"><div className="auth-aside-art"><span>z</span><i/><b/></div><p>Plan with clarity.<br/>Make with intention.</p><span>YOUR WORK, IN GOOD COMPANY.</span></aside></div>;
+    <aside className="auth-aside"><div className="auth-aside-art"><span>z</span><i /><b /></div><p>Plan with clarity.<br />Make with intention.</p><span>YOUR WORK, IN GOOD COMPANY.</span></aside></div>;
 }
