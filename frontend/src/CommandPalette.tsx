@@ -61,6 +61,7 @@ export default function CommandPalette({ onClose, actions }: { onClose: () => vo
     { id: 'workshop', title: 'Generate documentation', icon: FileText, run: () => go('/ai/workshop'), keywords: 'readme docs planner' },
     { id: 'team', title: 'Go to Team', icon: Users, run: () => go('/team'), keywords: 'invite members' },
     { id: 'settings', title: 'Open Settings', icon: Settings, run: () => go('/settings'), keywords: 'profile account' },
+    { id: 'legal', title: 'Terms of service & privacy', icon: FileText, run: () => go('/legal'), keywords: 'terms privacy legal policy gdpr compliance' },
     ...(actions.startTour ? [{ id: 'tour', title: 'Take the Zynckle tour', icon: Sparkles, run: () => { onClose(); actions.startTour!(); }, keywords: 'onboarding help tutorial welcome guide' }] : []),
     { id: 'theme', title: 'Toggle light / dark theme', icon: Moon, run: () => { actions.toggleTheme(); onClose(); }, keywords: 'appearance dark mode' },
   ], []); // eslint-disable-line react-hooks/exhaustive-deps

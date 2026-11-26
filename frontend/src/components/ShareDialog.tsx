@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Copy, Globe2, Link2, Lock, Save, Trash2, X } from 'lucide-react';
+import { Check, Copy, Globe2, Link2, Lock, Save, Trash2, X } from 'lucide-react';
 import { api, errorMessage, timeAgo, type Member } from '../lib/api';
 
 type PublicLink = { id: string; createdAt: string; expiresAt: string | null; views: number };
@@ -12,6 +12,7 @@ function PublicLinks({ base, disabledReason, canEdit, noun }: { base: string; di
   const [links, setLinks] = useState<PublicLink[]>([]);
   const [days, setDays] = useState(30);
   const [fresh, setFresh] = useState('');
+  const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const load = useCallback(() => api<PublicLink[]>(`${base}/share-links`).then(setLinks).catch(e => setError(errorMessage(e, 'Public links could not be loaded'))), [base]);
@@ -30,7 +31,13 @@ function PublicLinks({ base, disabledReason, canEdit, noun }: { base: string; di
     try { await api(`/api/share-links/${id}`, { method: 'DELETE' }); setLinks(l => l.filter(x => x.id !== id)); }
     catch (e) { setError(errorMessage(e, 'The link could not be revoked')); }
   };
-  const copy = async () => { try { await navigator.clipboard.writeText(fresh); } catch { /* clipboard blocked: the field is selectable */ } };
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(fresh);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2200);
+    } catch { /* clipboard blocked: the field is selectable */ }
+  };
   return <section className="zy-public-links" aria-labelledby="public-links-title">
     <div className="eyebrow" id="public-links-title"><Link2 size={12}/> PUBLIC READ-ONLY LINK</div>
     {disabledReason ? <p className="zy-muted-note">{disabledReason}</p> : <>
@@ -39,7 +46,7 @@ function PublicLinks({ base, disabledReason, canEdit, noun }: { base: string; di
         <label>Expires<select value={days} onChange={e => setDays(Number(e.target.value))}><option value={1}>in 1 day</option><option value={7}>in 7 days</option><option value={30}>in 30 days</option><option value={365}>in 1 year</option><option value={0}>never</option></select></label>
         <button type="button" className="button-secondary" onClick={create} disabled={busy}><Link2 size={14}/> {busy ? 'Creating…' : 'Create link'}</button>
       </div>}
-      {fresh && <div className="zy-public-fresh" role="status"><input readOnly value={fresh} aria-label="New public link" onFocus={e => e.currentTarget.select()}/><button type="button" className="button-secondary" onClick={copy}><Copy size={14}/> Copy</button><small>Copy it now: for security it will not be shown again.</small></div>}
+      {fresh && <div className="zy-public-fresh" role="status"><input readOnly value={fresh} aria-label="New public link" onFocus={e => e.currentTarget.select()}/><button type="button" className="button-secondary" onClick={copy}>{copied ? <><Check size={14}/> Copied</> : <><Copy size={14}/> Copy</>}</button><small>Copy it now: for security it will not be shown again.</small></div>}
     </>}
     {links.length > 0 && <ul className="zy-public-list">{links.map(l => <li key={l.id}>
       <span><strong>Link created {timeAgo(l.createdAt)}</strong><small>{l.views} view{l.views === 1 ? '' : 's'} · {l.expiresAt ? (new Date(l.expiresAt) < new Date() ? 'expired' : `expires ${new Date(l.expiresAt).toLocaleDateString()}`) : 'never expires'}</small></span>

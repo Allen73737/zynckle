@@ -6402,4 +6402,73 @@ button:active,
   gap: 12px;
 }
 
+/* Custom sleek monochrome scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+/* Clean, ink-saving print formatting for documents & previews */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #111111 !important;
+  }
+  .sidebar,
+  .dock-rail,
+  .topbar,
+  .ai-fab,
+  .zy-mobile-nav,
+  .page-footer,
+  .toast-region,
+  .modal-backdrop,
+  .zy-focus-exit-pill,
+  .zy-docs-list-head,
+  .docs-list,
+  .doc-toolbar,
+  .doc-reading-bar,
+  .zy-comments,
+  .command-palette-backdrop,
+  .button-primary,
+  .button-secondary,
+  .icon-button,
+  .text-button {
+    display: none !important;
+  }
+  .app-shell,
+  .main-area,
+  .page-content,
+  .docs-layout,
+  .doc-editor {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    border: none !important;
+    background: transparent !important;
+  }
+  .doc-title {
+    color: #000000 !important;
+    border-bottom: 2px solid #000000 !important;
+  }
+  .rich-text-content {
+    color: #111111 !important;
+  }
+}
+
+
 

@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowRight, ChevronDown, ChevronRight, Code2, Copy, Download, ExternalLink, FileCode2, FileText, Folder, FolderOpen, GitBranch, History, LoaderCircle, Lock, Pencil, Plus, Search, Share2, ShieldCheck, Sparkles, Trash2, Upload, X } from 'lucide-react';
+import { ArrowRight, Check, ChevronDown, ChevronRight, Code2, Copy, Download, ExternalLink, FileCode2, FileText, Folder, FolderOpen, GitBranch, History, LoaderCircle, Lock, Pencil, Plus, Search, Share2, ShieldCheck, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import ShareDialog from './components/ShareDialog';
 import { api, errorMessage, formatBytes, timeAgo, uploadWithProgress } from './lib/api';
 
@@ -105,6 +105,7 @@ function CodeRepository({ id, notify, canEdit }: { id: string; notify: (message:
   const [sharing, setSharing] = useState(false);
   const [editingMeta, setEditingMeta] = useState(false);
   const [meta, setMeta] = useState({ name: '', description: '' });
+  const [copiedCode, setCopiedCode] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const folderInput = useRef<HTMLInputElement>(null);
   const zipInput = useRef<HTMLInputElement>(null);
@@ -227,7 +228,7 @@ function CodeRepository({ id, notify, canEdit }: { id: string; notify: (message:
               <span>{active.file.language} · {formatBytes(active.file.sizeBytes)}</span>
               {active.version !== null && <span className="zy-pill">Older version</span>}
               <button className="text-button" onClick={async () => setVersions(versions ? null : await api(`/api/code-files/${active.file.id}/versions`))}><History size={12}/> {active.file.versionCount + 1} version{active.file.versionCount ? 's' : ''}</button>
-              {active.content !== null && <button className="text-button" onClick={() => { navigator.clipboard.writeText(active.content || ''); notify('Copied source'); }}><Copy size={12}/> Copy</button>}
+              {active.content !== null && <button className="text-button" onClick={() => { navigator.clipboard.writeText(active.content || ''); setCopiedCode(true); notify('Copied source'); setTimeout(() => setCopiedCode(false), 2000); }}>{copiedCode ? <><Check size={12}/> Copied</> : <><Copy size={12}/> Copy</>}</button>}
               <button className="text-button" onClick={() => download(`/api/code-files/${active.file.id}/raw`, active.file.path.split('/').pop() || 'file')}><Download size={12}/> Download</button>
               {canEdit && <button className="text-button danger" onClick={() => removeFile(active.file)}><Trash2 size={12}/></button>}
             </span>

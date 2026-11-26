@@ -209,6 +209,7 @@ export default function DocumentsStudio({ onSave, notify, search, account, canEd
   const canShare = Boolean(current && (current.ownerId === account.id || isAdmin));
 
   return <>
+    {focus && <button type="button" className="zy-focus-exit-pill" onClick={() => setFocus(false)} aria-label="Exit focus mode"><Minimize2 size={13}/> Exit focus <kbd>Esc</kbd></button>}
     <section className="welcome-row subpage-welcome"><div><div className="eyebrow">ZYNCKLE DOCS · LIVE COLLABORATION</div><h1>Ideas, <em>in writing.</em></h1><p className="welcome-sub">Write together in real time. Changes save automatically; save a revision whenever you reach a milestone.</p></div>{canEdit && <button className="button-primary" onClick={() => create()}><Plus size={16}/> New document</button>}</section>
     <div className={`docs-layout zy-docs ${commentsOpen ? 'with-comments' : ''}`}>
       <aside className="docs-list">

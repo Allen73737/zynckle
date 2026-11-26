@@ -38,6 +38,7 @@ export default function ArchitectureStudio({ projects, notify, canEdit }: { proj
   const [editText, setEditText] = useState('');
   const [guidance, setGuidance] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [scaffoldModalOpen, setScaffoldModalOpen] = useState(false);
   const [scaffoldData, setScaffoldData] = useState<{ title: string; serviceName: string; files: Record<string, string> } | null>(null);
   const [scaffoldBusy, setScaffoldBusy] = useState(false);
@@ -194,7 +195,7 @@ export default function ArchitectureStudio({ projects, notify, canEdit }: { proj
                 <header>
                   <div><h2>{section.title}</h2><small>{isRunning ? 'Writing…' : queued ? 'Queued' : saved ? `${saved.edited ? 'Edited' : 'Generated'} ${timeAgo(saved.updatedAt)}` : section.note}</small></div>
                   <div className="zy-arch-section-actions">
-                    {saved && !isRunning && <button className="text-button" onClick={() => { navigator.clipboard.writeText(saved.content); notify('Section copied'); }}><Copy size={12}/> Copy</button>}
+                    {saved && !isRunning && <button className="text-button" onClick={() => { navigator.clipboard.writeText(saved.content); setCopiedKey(section.key); notify('Section copied'); setTimeout(() => setCopiedKey(null), 2000); }}>{copiedKey === section.key ? <><Check size={12}/> Copied</> : <><Copy size={12}/> Copy</>}</button>}
                     {saved && !isRunning && canEdit && <button className="text-button" onClick={() => { setEditing(section.key); setEditText(saved.content); }}><Pencil size={12}/> Edit</button>}
                     {canEdit && <button className="text-button" disabled={!available || Boolean(running) || queued || !draft.description.trim()} onClick={() => generate(section.key)}>{isRunning ? <LoaderCircle className="spin" size={12}/> : saved ? <RotateCcw size={12}/> : <Sparkles size={12}/>} {saved ? 'Regenerate' : 'Generate'}</button>}
                   </div>

@@ -68,6 +68,7 @@ export default function AIStudio({ projects, tasks = [], canEdit = true, notify,
   const [listQuery, setListQuery] = useState('');
   const [activeId, setActiveId] = useState<string | null>(params.get('c'));
   const [messages, setMessages] = useState<Message[]>([]);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [loadingThread, setLoadingThread] = useState(false);
   const [mode, setMode] = useState<Mode>((params.get('mode') as Mode) || 'general');
   const [context, setContext] = useState<Context>(() => ({
@@ -238,7 +239,7 @@ export default function AIStudio({ projects, tasks = [], canEdit = true, notify,
               {!!message.sources?.length && <SourceList message={message} onOpen={openSource}/>}
               {message.retrieval && !message.retrieval.passages && !message.sources?.length && message.content && <p className="zy-muted-note">No matching workspace content was found for this question.</p>}
               {message.content && !live && <div className="zy-msg-actions">
-                <button onClick={() => { navigator.clipboard.writeText(parts.text); notify('Response copied'); }}><Copy size={13}/> Copy</button>
+                <button onClick={() => { navigator.clipboard.writeText(parts.text); setCopiedId(message.id); notify('Response copied'); setTimeout(() => setCopiedId(null), 2000); }}>{copiedId === message.id ? <><Check size={13}/> Copied</> : <><Copy size={13}/> Copy</>}</button>
                 {index === messages.length - 1 && lastUser && <button onClick={() => run(lastUser.content, true)} disabled={streaming || !status?.available}><RotateCcw size={13}/> Regenerate</button>}
                 <button onClick={() => saveToDocs(message)}><Save size={13}/> Save to Documents</button>
                 {!message.id.startsWith('pending-') && <span className="zy-feedback" role="group" aria-label="Was this answer helpful?">
