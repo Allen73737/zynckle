@@ -43,7 +43,7 @@ export default function OnboardingTour({ onClose }: { onClose: () => void }) {
 
   return <div className="modal-backdrop zy-tour-backdrop">
     <div className="modal zy-tour" ref={dialog} role="dialog" aria-modal="true" aria-labelledby="tour-title" aria-describedby="tour-body">
-      <button className="icon-button zy-tour-close" onClick={onClose} aria-label="Skip the tour"><X size={16}/></button>
+      <button className="icon-button zy-tour-close" onClick={onClose} aria-label="Close"><X size={16}/></button>
       <span className="zy-tour-icon" aria-hidden="true"><Icon size={22}/></span>
       <div className="eyebrow">STEP {step + 1} OF {STEPS.length}</div>
       <h2 id="tour-title">{title}</h2>
