@@ -45,7 +45,22 @@ const nav = [
 const crumbFor = (path: string) => ({ '': 'Overview', today: 'The Daily Edition', projects: 'Projects', project: 'Projects', tasks: 'My tasks', task: 'My tasks', documents: 'Documents', doc: 'Documents', docs: 'Documents', ai: 'Zynckle AI', architecture: 'AI Architecture', workshop: 'AI Workshop', latex: 'LaTeX studio', 'latex-studio': 'LaTeX studio', code: 'Code', drive: 'Drive', files: 'Drive', previews: 'Website previews', preview: 'Website previews', team: 'Team', settings: 'Settings', about: 'About Zynckle' } as Record<string, string>)[path.split('/')[1] || ''] || 'Workspace';
 const normaliseTask = (t: Task): Task => ({ ...t, date: t.date || t.due || 'No date', done: t.done || t.status === 'Done', priority: t.priority || 'Normal' });
 
-function PageLoader() { return <div className="zy-page-loader" aria-label="Loading"><i/><i/><i/></div>; }
+function PageLoader() {
+  return (
+    <div className="zy-page-loader" aria-label="Loading workspace content" role="status">
+      <div className="zy-skeleton-hero">
+        <i className="zy-sk-title" />
+        <i className="zy-sk-sub" />
+      </div>
+      <div className="zy-skeleton-metrics">
+        <i /><i /><i /><i />
+      </div>
+      <div className="zy-skeleton-grid">
+        <i /><i /><i />
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   const [sidebarExpanded, setSidebarExpanded] = useState(() => localStorage.getItem('zynckle-sidebar-expanded') !== 'false');
@@ -75,6 +90,14 @@ export default function App() {
   const [modal, setModal] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [toast, setToast] = useState('');
+  const [railTooltip, setRailTooltip] = useState<{ label: string; y: number } | null>(null);
+  const showRailTip = (e: React.MouseEvent<HTMLElement>, label: string) => {
+    if (!sidebarExpanded) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      setRailTooltip({ label, y: rect.top + rect.height / 2 });
+    }
+  };
+  const hideRailTip = () => setRailTooltip(null);
   const [search, setSearch] = useState('');
   const [apiStatus, setApiStatus] = useState('Checking connection');
   const [loaded, setLoaded] = useState(false);
@@ -376,7 +399,9 @@ export default function App() {
             to={item.to}
             end={item.to === '/'}
             className={({ isActive }) => `drawer-nav-item ${isActive ? 'active' : ''}`}
-            title={item.label}
+            title={sidebarExpanded ? item.label : undefined}
+            onMouseEnter={e => showRailTip(e, item.label)}
+            onMouseLeave={hideRailTip}
           >
             <item.icon size={20} className="drawer-nav-icon" strokeWidth={1.8} />
             <span className="drawer-nav-label">{item.label}</span>
@@ -459,29 +484,71 @@ export default function App() {
         ) : (
           <div className="drawer-bottom-row" style={{ flexDirection: 'column', gap: '8px' }}>
             {canEdit && (
-              <button className="drawer-icon-btn" onClick={() => setCaptureOpen(true)} title="Quick Capture Task (C)">
+              <button
+                className="drawer-icon-btn"
+                onClick={() => setCaptureOpen(true)}
+                onMouseEnter={e => showRailTip(e, 'Quick capture (C)')}
+                onMouseLeave={hideRailTip}
+                aria-label="Quick capture task"
+              >
                 <Plus size={20} strokeWidth={2} />
               </button>
             )}
-            <button className="drawer-icon-btn" onClick={() => setPaletteOpen(true)} title="Command Search (Ctrl+K)">
+            <button
+              className="drawer-icon-btn"
+              onClick={() => setPaletteOpen(true)}
+              onMouseEnter={e => showRailTip(e, 'Command search (Ctrl+K)')}
+              onMouseLeave={hideRailTip}
+              aria-label="Command search"
+            >
               <Search size={19} />
             </button>
-            <button className="drawer-icon-btn" onClick={() => setScratchpadOpen(true)} title="Quick Scratchpad (Ctrl+E)">
+            <button
+              className="drawer-icon-btn"
+              onClick={() => setScratchpadOpen(true)}
+              onMouseEnter={e => showRailTip(e, 'Scratchpad (Ctrl+E)')}
+              onMouseLeave={hideRailTip}
+              aria-label="Quick Scratchpad"
+            >
               <PenLine size={19} />
             </button>
-            <button className="drawer-icon-btn" onClick={toggleTheme} title={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} mode`}>
+            <button
+              className="drawer-icon-btn"
+              onClick={toggleTheme}
+              onMouseEnter={e => showRailTip(e, resolvedTheme === 'dark' ? 'Light mode' : 'Dark mode')}
+              onMouseLeave={hideRailTip}
+              aria-label={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} mode`}
+            >
               {resolvedTheme === 'dark' ? <Sun size={19} /> : <Moon size={19} />}
             </button>
-            <NavLink to="/settings" className="drawer-icon-btn" title="Settings">
+            <NavLink
+              to="/settings"
+              className="drawer-icon-btn"
+              onMouseEnter={e => showRailTip(e, 'Settings')}
+              onMouseLeave={hideRailTip}
+              aria-label="Settings"
+            >
               <Settings size={19} />
             </NavLink>
-            <NavLink to="/settings#profile" className="dock-avatar" title={`Signed in as ${account.name}`}>
+            <NavLink
+              to="/settings#profile"
+              className="dock-avatar"
+              onMouseEnter={e => showRailTip(e, account.name)}
+              onMouseLeave={hideRailTip}
+              aria-label={`Signed in as ${account.name}`}
+            >
               {account.name.slice(0, 2).toUpperCase()}
             </NavLink>
           </div>
         )}
       </div>
     </aside>
+
+    {!sidebarExpanded && railTooltip && (
+      <div className="zy-rail-tooltip" style={{ top: `${railTooltip.y}px` }} role="tooltip">
+        {railTooltip.label}
+      </div>
+    )}
 
     {sidebarExpanded && (
       <div className="mobile-drawer-backdrop zy-mobile-only" onClick={toggleSidebar} aria-hidden="true" />
@@ -592,7 +659,56 @@ export default function App() {
     {shortcutsOpen && <ShortcutSheet onClose={() => setShortcutsOpen(false)}/>}
     {taskModal && <TaskModal projects={projects} project={taskProject} onClose={() => { setTaskModal(false); setTaskProject(''); }} onCreate={createTask}/>}
     {!aiOpen && !location.pathname.startsWith('/ai') && <button onClick={() => setAiOpen(true)} className="ai-fab" aria-label="Ask Zynckle AI (Ctrl+J)" title="Ask Zynckle AI (Ctrl+J)"><Sparkles size={17}/><span>Ask AI</span></button>}
-    {toast && <div className="toast" role="status"><Check size={16}/>{toast}</div>}
+    {toast && (
+      <div
+        className="toast"
+        role="status"
+        onMouseEnter={() => window.clearTimeout(toastTimer.current)}
+        onMouseLeave={() => {
+          window.clearTimeout(toastTimer.current);
+          toastTimer.current = window.setTimeout(() => setToast(''), 2200);
+        }}
+      >
+        <Check size={16} />
+        <span className="toast-text">{toast}</span>
+        <button
+          className="toast-dismiss"
+          onClick={() => { window.clearTimeout(toastTimer.current); setToast(''); }}
+          aria-label="Dismiss notification"
+        >
+          <X size={14} />
+        </button>
+        <div className="toast-progress" />
+      </div>
+    )}
+
+    {/* Mobile Sticky Bottom Navigation Bar */}
+    <nav className="mobile-bottom-bar" aria-label="Mobile navigation">
+      <NavLink to="/today" className={({ isActive }) => `mobile-tab ${isActive ? 'active' : ''}`}>
+        <Newspaper size={20} />
+        <span>Today</span>
+      </NavLink>
+      <NavLink to="/tasks" className={({ isActive }) => `mobile-tab ${isActive ? 'active' : ''}`}>
+        <div className="mobile-tab-icon-wrap">
+          <Check size={20} />
+          {tasks.filter(t => !t.done && t.assigneeId === account.id).length > 0 && <span className="mobile-tab-dot" />}
+        </div>
+        <span>Tasks</span>
+      </NavLink>
+      {canEdit && (
+        <button className="mobile-capture-btn" onClick={() => setCaptureOpen(true)} aria-label="Quick capture task">
+          <Plus size={22} strokeWidth={2.5} />
+        </button>
+      )}
+      <NavLink to="/documents" className={({ isActive }) => `mobile-tab ${isActive ? 'active' : ''}`}>
+        <BookOpen size={20} />
+        <span>Docs</span>
+      </NavLink>
+      <button className="mobile-tab" onClick={toggleSidebar} aria-label="Open navigation drawer">
+        <Menu size={20} />
+        <span>More</span>
+      </button>
+    </nav>
   </div>;
 }
 

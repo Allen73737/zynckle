@@ -36,6 +36,7 @@ export default function DriveStudio({ notify, canEdit, isAdmin, accountId, onUsa
   const [sharing, setSharing] = useState<DriveFile | null>(null);
   const [moving, setMoving] = useState<DriveFile | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  const dragCounter = useRef(0);
 
   const refreshUsage = () => api<Usage>('/api/storage/usage').then(u => { setUsage(u); onUsage?.(u); }).catch(() => {});
   const load = async () => {
@@ -126,7 +127,37 @@ export default function DriveStudio({ notify, canEdit, isAdmin, accountId, onUsa
   const mime = active?.file.mimeType || '';
   const usedShare = usage ? Math.min(100, (usage.usedBytes / usage.quotaBytes) * 100) : 0;
 
-  return <div onDragEnter={e => { if (canEdit && e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDragging(true); } }} onDragOver={e => { if (dragging) e.preventDefault(); }} onDragLeave={e => { if (e.currentTarget === e.target || !e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false); }} onDrop={e => { e.preventDefault(); setDragging(false); if (canEdit) upload(e.dataTransfer.files); }} className="zy-drive-root">
+  return <div
+    onDragEnter={e => {
+      if (canEdit && e.dataTransfer.types.includes('Files')) {
+        e.preventDefault();
+        dragCounter.current++;
+        if (dragCounter.current === 1) setDragging(true);
+      }
+    }}
+    onDragOver={e => {
+      if (canEdit && e.dataTransfer.types.includes('Files')) {
+        e.preventDefault();
+      }
+    }}
+    onDragLeave={e => {
+      if (canEdit && e.dataTransfer.types.includes('Files')) {
+        e.preventDefault();
+        dragCounter.current--;
+        if (dragCounter.current <= 0) {
+          dragCounter.current = 0;
+          setDragging(false);
+        }
+      }
+    }}
+    onDrop={e => {
+      e.preventDefault();
+      dragCounter.current = 0;
+      setDragging(false);
+      if (canEdit) upload(e.dataTransfer.files);
+    }}
+    className="zy-drive-root"
+  >
     <section className="welcome-row subpage-welcome"><div><div className="eyebrow">ZYNCKLE DRIVE · WORKSPACE FILES</div><h1>Your files, <em>in reach.</em></h1><p className="welcome-sub">Upload documents, media, archives and source files. Previews use short-lived signed links; nothing uploaded is ever executed.</p></div>
       <div className="zy-head-actions">{canEdit && <button className="button-secondary" onClick={createFolder}><FolderPlus size={15}/> New folder</button>}<button className="button-primary" onClick={() => input.current?.click()} disabled={!canEdit || uploads.some(u => u.progress < 1 && !u.error)}><Plus size={16}/>Upload files</button></div>
       <input ref={input} type="file" multiple hidden onChange={e => upload(e.target.files)}/></section>

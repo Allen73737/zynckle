@@ -253,6 +253,18 @@ export default function DocumentsStudio({ onSave, notify, search, account, canEd
             onPeers={setPeers} onSelectionText={setSelection}
             onFallback={() => { setLocalOnly(true); notify('Live collaboration is unavailable — editing locally; changes still save'); }}/>
         </Suspense>
+        {(() => {
+          const plain = (body || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+          const words = plain ? plain.split(/\s+/).length : 0;
+          const chars = plain.length;
+          const readTime = Math.max(1, Math.ceil(words / 220));
+          return (
+            <div className="doc-reading-bar">
+              <span>{words.toLocaleString()} {words === 1 ? 'word' : 'words'} · {chars.toLocaleString()} characters</span>
+              <span>~{readTime} min read</span>
+            </div>
+          );
+        })()}
       </> : <div className="doc-empty"><BookOpen/><h2>A space for the thinking.</h2><p>Create a document to capture the ideas behind your work.</p>{canEdit && <button className="button-secondary" onClick={() => create()}><Plus size={14}/> Start a document</button>}</div>}</section>
       {commentsOpen && current && <aside className="zy-comments" aria-label="Document comments">
         <header><div><div className="eyebrow">DISCUSSION</div><strong>Comments</strong></div><button className="icon-button" onClick={() => setCommentsOpen(false)} aria-label="Close comments"><X size={15}/></button></header>
