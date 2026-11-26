@@ -11,8 +11,15 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: none
+  # The schema lives in db/migration and is applied on startup, before any bean touches the database.
   flyway:
-    enabled: ${FLYWAY_ENABLED:false}
+    enabled: ${FLYWAY_ENABLED:true}
+    # Databases created by the old startup code have tables but no history: baseline them at 0,
+    # then run the (idempotent) migrations to fill any gaps.
+    baseline-on-migrate: true
+    baseline-version: 0
+    # The pre-Java V1–V3 files were removed; don't fail on databases that recorded them.
+    ignore-migration-patterns: "*:missing"
   mvc:
     async:
       # AI answers stream over server-sent events; allow long generations.

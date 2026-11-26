@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams, NavLink, useNavigate } from 'react-router-dom';
-import { ArrowUp, Bug, Check, ChevronDown, Code2, Copy, Database, FileText, Library, LoaderCircle, MessagesSquare, Pin, PinOff, Plus, RotateCcw, Save, Search, ShieldCheck, Sparkles, Square, ThumbsDown, ThumbsUp, Trash2, X, BookOpen, SlidersHorizontal } from 'lucide-react';
+import { ArrowUp, Bug, Check, ChevronDown, Code2, Copy, Database, FileText, Library, LoaderCircle, MessagesSquare, NotebookPen, Pin, PinOff, Plus, RotateCcw, Save, Search, ShieldCheck, Sparkles, Square, ThumbsDown, ThumbsUp, Trash2, X, BookOpen, SlidersHorizontal } from 'lucide-react';
 import Markdown, { markdownToHtml, type Citation } from './Markdown';
 import AINav from './AINav';
 import { SOURCE_ICONS, SOURCE_LABELS } from './sourceMeta';
 import { ActionPlan, splitActions } from './AiActions';
 import { api, errorMessage, streamAI, timeAgo, type Retrieval, type Source } from './lib/api';
 
-type Mode = 'general' | 'explain' | 'review' | 'bug' | 'database' | 'docs';
+type Mode = 'general' | 'meeting' | 'explain' | 'review' | 'bug' | 'database' | 'docs';
 type Rag = 'off' | 'auto' | 'deep';
 type Message = { id: string; role: 'user' | 'assistant'; content: string; createdAt?: string; model?: string; provider?: string; sources?: Source[]; retrieval?: Retrieval | null; feedback?: number };
 type Conversation = { id: string; title: string; mode: Mode; updatedAt: string; messageCount: number; pinned: boolean };
@@ -18,6 +18,7 @@ type Option = { id: string; name: string };
 
 export const AI_MODES: { id: Mode; label: string; hint: string; icon: typeof Sparkles; prompts: string[] }[] = [
   { id: 'general', label: 'Assistant', hint: 'Plan, explain, summarise, draft', icon: Sparkles, prompts: ['Summarise where this project stands and what to do next', 'Draft a kickoff brief for the selected project', 'Turn these notes into a clear plan with milestones'] },
+  { id: 'meeting', label: 'Meeting notes', hint: 'Paste notes or a transcript: summary, decisions and tasks to approve', icon: NotebookPen, prompts: ['Here are my meeting notes. Summarise them and propose the action items as tasks:\n\n', 'Turn this call transcript into decisions and action items:\n\n', 'Pull the follow-ups with owners and due dates out of these notes:\n\n'] },
   { id: 'explain', label: 'Explain code', hint: 'What does this code do?', icon: Code2, prompts: ['What does this code do?', 'Explain the main function step by step', 'How do these files fit together?'] },
   { id: 'review', label: 'Review code', hint: 'Bugs, security, performance', icon: ShieldCheck, prompts: ['Review this code for bugs and security issues', 'Find performance problems in these files', 'What would you refactor first, and why?'] },
   { id: 'bug', label: 'Debug', hint: 'Paste an error, find the cause', icon: Bug, prompts: ['Explain this error and how to fix it:\n\n', 'Why might this fail intermittently?', 'Walk me through debugging this stack trace:\n\n'] },

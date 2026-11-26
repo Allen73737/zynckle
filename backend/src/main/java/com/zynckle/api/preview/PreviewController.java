@@ -15,10 +15,14 @@ import java.util.*;
 public class PreviewController {
     private final JdbcTemplate jdbc;
     private final Activity activity;
+    private final SiteCheck siteCheck;
+    private final com.zynckle.api.common.RateLimiter limiter;
 
-    public PreviewController(JdbcTemplate jdbc, Activity activity) {
+    public PreviewController(JdbcTemplate jdbc, Activity activity, SiteCheck siteCheck, com.zynckle.api.common.RateLimiter limiter) {
         this.jdbc = jdbc;
         this.activity = activity;
+        this.siteCheck = siteCheck;
+        this.limiter = limiter;
     }
 
     private static final String SELECT = """
@@ -70,11 +74,8 @@ public class PreviewController {
     }
 
     @GetMapping("/check")
-    public Map<String, Object> checkPreview(@RequestParam(required = false) String url) {
-        return Map.of(
-            "reachable", true,
-            "embeddable", true,
-            "reason", "Site verified for live responsive preview"
-        );
+    public Map<String, Object> checkPreview(CurrentUser me, @RequestParam(required = false) String url) {
+        limiter.check("preview-check:" + me.userId(), 30, 60_000);
+        return siteCheck.check(url);
     }
 }

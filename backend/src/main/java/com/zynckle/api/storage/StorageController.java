@@ -4,6 +4,7 @@ import com.zynckle.api.ai.AiSettings;
 import com.zynckle.api.common.Activity;
 import com.zynckle.api.common.ApiException;
 import com.zynckle.api.common.Validate;
+import com.zynckle.api.realtime.RealtimeHub;
 import com.zynckle.api.security.CurrentUser;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
@@ -26,13 +27,15 @@ public class StorageController {
     private final JdbcTemplate jdbc;
     private final BlobStore blobs;
     private final Activity activity;
+    private final RealtimeHub hub;
     private final long maxUpload;
     private final long quota;
 
-    public StorageController(JdbcTemplate jdbc, BlobStore blobs, Activity activity, AiSettings settings) {
+    public StorageController(JdbcTemplate jdbc, BlobStore blobs, Activity activity, AiSettings settings, RealtimeHub hub) {
         this.jdbc = jdbc;
         this.blobs = blobs;
         this.activity = activity;
+        this.hub = hub;
         this.maxUpload = settings.getInt("MAX_UPLOAD_MB", 25) * 1_048_576L;
         this.quota = settings.getInt("WORKSPACE_QUOTA_MB", 1024) * 1_048_576L;
     }
@@ -52,6 +55,13 @@ public class StorageController {
         Map<String, Object> f = jdbc.queryForList("SELECT * FROM drive_file WHERE id = ? AND workspace_id = ?", id, me.workspaceId()).stream().findFirst().orElse(null);
         if (f == null || !canSee(f, me)) throw new ApiException(404, "File not found");
         return f;
+    }
+
+    /** Private files only reach their owner and the people they were shared with. */
+    private void publishChange(CurrentUser me, Map<String, Object> f) {
+        List<String> audience = null;
+        if ("private".equals(f.get("visibility"))) { audience = new ArrayList<>(sharedWith(f.get("shared_with"))); audience.add(String.valueOf(f.get("owner_id"))); }
+        hub.publish(me.workspaceId(), "file.changed", view(f), audience);
     }
 
     private Map<String, Object> view(Map<String, Object> f) {
@@ -94,7 +104,9 @@ public class StorageController {
         jdbc.update("INSERT INTO drive_file (id, workspace_id, folder_id, owner_id, name, mime_type, size_bytes, storage_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             id, me.workspaceId(), folderId, me.userId(), name, FileTypes.mime(name), bytes.length, key);
         activity.log(me, "uploaded", "file", name);
-        return view(find(me, id));
+        Map<String, Object> stored = find(me, id);
+        publishChange(me, stored);
+        return view(stored);
     }
 
     private static String header(String value) {
@@ -200,7 +212,9 @@ public class StorageController {
             }
             activity.log(me, "changed sharing for", "file", String.valueOf(f.get("name")), true, null);
         }
-        return view(find(me, id));
+        Map<String, Object> saved = jdbc.queryForList("SELECT * FROM drive_file WHERE id = ?", id).get(0);
+        publishChange(me, saved);
+        return canSee(saved, me) ? view(saved) : Map.of("id", id, "hidden", true);
     }
 
     @DeleteMapping("/files/{id}")
@@ -211,6 +225,7 @@ public class StorageController {
         blobs.delete((String) f.get("storage_key"));
         jdbc.update("DELETE FROM drive_file WHERE id = ?", id);
         activity.log(me, "deleted", "file", String.valueOf(f.get("name")));
+        hub.publish(me.workspaceId(), "file.deleted", Map.of("id", id), null);
         return Map.of("deleted", true);
     }
 

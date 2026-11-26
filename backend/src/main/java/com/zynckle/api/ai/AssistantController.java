@@ -41,9 +41,10 @@ public class AssistantController {
     private final ObjectMapper json;
     private final RateLimiter limiter;
     private final InsightsController.Insights insights;
+    private final ArchitectureController architectures;
     private final Map<String, Integer> dailyCounts = new ConcurrentHashMap<>();
 
-    public AssistantController(AiClient ai, RagService rag, ConversationRepository conversations, JdbcTemplate jdbc, AiSettings settings, ObjectMapper json, RateLimiter limiter, InsightsController.Insights insights) {
+    public AssistantController(AiClient ai, RagService rag, ConversationRepository conversations, JdbcTemplate jdbc, AiSettings settings, ObjectMapper json, RateLimiter limiter, InsightsController.Insights insights, ArchitectureController architectures) {
         this.ai = ai;
         this.rag = rag;
         this.conversations = conversations;
@@ -52,6 +53,7 @@ public class AssistantController {
         this.json = json;
         this.limiter = limiter;
         this.insights = insights;
+        this.architectures = architectures;
     }
 
     // ---- Limits ------------------------------------------------------------------
@@ -135,8 +137,8 @@ public class AssistantController {
         }
         if (spec.get("documentIds") instanceof List<?> ids) {
             for (Object id : ids.stream().limit(6).toList()) {
-                List<Map<String, Object>> found = jdbc.queryForList("SELECT id, title, content, type FROM document WHERE id = ? AND workspace_id = ?", String.valueOf(id), me.workspaceId());
-                if (found.isEmpty()) continue;
+                List<Map<String, Object>> found = jdbc.queryForList("SELECT * FROM document WHERE id = ? AND workspace_id = ?", String.valueOf(id), me.workspaceId());
+                if (found.isEmpty() || !com.zynckle.api.document.DocumentsController.canSee(found.get(0), me)) continue;
                 Map<String, Object> d = found.get(0);
                 boolean latex = "latex".equals(d.get("type"));
                 String content = text(d.get("content"));
@@ -308,6 +310,7 @@ public class AssistantController {
         Map<String, Object> spec = body.get("context") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
         Context context = buildContext(me, spec);
         if ("brief".equals(mode)) context.add("workspace health", insights.asContext(me), source("workspace", me.workspaceId(), "Workspace health", "/"), Integer.MAX_VALUE);
+        if ("weekly".equals(mode)) context.add("the last seven days", insights.weeklyContext(me), source("workspace", me.workspaceId(), "Last 7 days", "/"), Integer.MAX_VALUE);
         List<Map<String, String>> history = new ArrayList<>();
         String conversationId = null;
         String section = null;
@@ -365,7 +368,7 @@ public class AssistantController {
             messages.add(Map.of("role", "system", "content", "Reference material for this request:\n" + String.join("\n\n", context.blocks) + (CITE_MODES.contains(mode) ? "\n\n" + Prompts.CITATION_RULES : "")));
         }
         // Viewers cannot change anything, so they are never offered actions.
-        if ("general".equals(mode) && me.canEdit() && !Boolean.FALSE.equals(body.get("actions"))) {
+        if (("general".equals(mode) || "meeting".equals(mode)) && me.canEdit() && !Boolean.FALSE.equals(body.get("actions"))) {
             messages.add(Map.of("role", "system", "content", Prompts.ACTIONS + "\n\n" + workspaceIndex(me)));
         }
         messages.addAll(history);
@@ -422,6 +425,9 @@ public class AssistantController {
                 String messageId = null;
                 if (prepared.conversationId() != null && !text.isEmpty()) {
                     messageId = conversations.addMessage(prepared.conversationId(), "assistant", text.toString(), prepared.provider().label(), prepared.provider().model(), prepared.sources(), prepared.retrieval());
+                }
+                if (body.get("architectureId") instanceof String designId && prepared.section() != null && !text.isEmpty()) {
+                    architectures.saveGeneratedSection(me, designId, prepared.section(), text.toString(), prepared.provider().model());
                 }
                 Map<String, Object> done = new LinkedHashMap<>();
                 done.put("messageId", messageId);

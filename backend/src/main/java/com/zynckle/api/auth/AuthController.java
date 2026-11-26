@@ -6,6 +6,9 @@ import com.zynckle.api.common.Activity;
 import com.zynckle.api.common.ApiException;
 import com.zynckle.api.common.RateLimiter;
 import com.zynckle.api.common.Validate;
+import com.zynckle.api.integration.Mailer;
+import com.zynckle.api.ai.AiSettings;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.zynckle.api.security.AuthService;
 import com.zynckle.api.security.CurrentUser;
 import com.zynckle.api.workspace.WorkspaceData;
@@ -39,8 +42,13 @@ public class AuthController {
     private final RateLimiter limiter;
     private final Activity activity;
     private final ObjectMapper json;
+    private final Mailer mailer;
+    private final AiSettings settings;
+    private final java.net.http.HttpClient http = java.net.http.HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
 
-    public AuthController(JdbcTemplate jdbc, AuthService auth, RateLimiter limiter, Activity activity, ObjectMapper json) {
+    public AuthController(JdbcTemplate jdbc, AuthService auth, RateLimiter limiter, Activity activity, ObjectMapper json, Mailer mailer, AiSettings settings) {
+        this.mailer = mailer;
+        this.settings = settings;
         this.jdbc = jdbc;
         this.auth = auth;
         this.limiter = limiter;
@@ -100,6 +108,7 @@ public class AuthController {
         String token = auth.issueToken("verify", userId, Duration.ofDays(3));
         String path = "/verify-email?token=" + token;
         log.info("[zynckle] Email verification link for {}: {}{}", email, auth.publicUrl(), path);
+        mailer.send(email, "Verify your Zynckle email", "Confirm this address for your Zynckle account:\n\n" + auth.publicUrl() + path + "\n\nThe link expires in 3 days.");
         return auth.exposeDevLinks() ? auth.publicUrl() + path : null;
     }
 
@@ -145,7 +154,7 @@ public class AuthController {
         out.put("user", Map.of("id", userId, "name", name, "email", email, "avatar", CurrentUser.initials(name)));
         out.put("workspace", Map.of("id", workspaceId, "name", workspaceName));
         out.put("verifyUrl", verifyUrl);
-        out.put("emailDelivery", false);
+        out.put("emailDelivery", mailer.configured());
         out.put("adoptedExistingWorkspace", adoptLegacy);
         return ResponseEntity.status(201).body(out);
     }
@@ -177,12 +186,13 @@ public class AuthController {
         List<Map<String, Object>> rows = jdbc.queryForList("SELECT id FROM app_user WHERE email = ?", email);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("sent", true);
-        out.put("emailDelivery", false);
+        out.put("emailDelivery", mailer.configured());
         out.put("devMode", auth.exposeDevLinks());
         if (!rows.isEmpty()) {
             String token = auth.issueToken("reset", (String) rows.get(0).get("id"), Duration.ofHours(1));
             String path = "/reset-password?token=" + token;
             log.info("[zynckle] Password reset link for {}: {}{}", email, auth.publicUrl(), path);
+            mailer.send(email, "Reset your Zynckle password", "Someone asked to reset the password for this account. If it was you, open:\n\n" + auth.publicUrl() + path + "\n\nThe link expires in 1 hour. If it wasn't you, ignore this email.");
             if (auth.exposeDevLinks()) out.put("resetUrl", auth.publicUrl() + path);
         }
         // Same response shape whether or not the account exists, to avoid account enumeration.
@@ -207,7 +217,67 @@ public class AuthController {
     }
 
     @GetMapping("/providers")
-    public Map<String, Object> providers() { return Map.of("password", true, "google", false, "emailDelivery", false); }
+    public Map<String, Object> providers() { return Map.of("password", true, "google", googleConfigured(), "emailDelivery", mailer.configured()); }
+
+    // ---- Google sign-in (active only when GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set) ----
+
+    private boolean googleConfigured() { return !settings.get("GOOGLE_CLIENT_ID").isBlank() && !settings.get("GOOGLE_CLIENT_SECRET").isBlank(); }
+
+    private String googleRedirectUri() { return auth.publicUrl() + "/api/auth/google/callback"; }
+
+    @GetMapping("/google/start")
+    public Map<String, Object> googleStart() {
+        if (!googleConfigured()) throw new ApiException(404, "Google sign-in is not configured");
+        String state = auth.randomToken(18);
+        auth.issueToken("oauth-state", "oauth:" + state, Duration.ofMinutes(10)); // keyed by state so concurrent sign-ins don't collide
+        String query = "client_id=" + enc(settings.get("GOOGLE_CLIENT_ID")) + "&redirect_uri=" + enc(googleRedirectUri())
+            + "&response_type=code&scope=" + enc("openid email profile") + "&state=" + enc(state) + "&prompt=select_account";
+        return Map.of("redirect", "https://accounts.google.com/o/oauth2/v2/auth?" + query);
+    }
+
+    private static String enc(String value) { return java.net.URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8); }
+
+    @GetMapping("/google/callback")
+    public ResponseEntity<Void> googleCallback(@RequestParam(required = false) String code, @RequestParam(required = false) String state, HttpServletRequest request) {
+        java.util.function.Function<String, ResponseEntity<Void>> back = message -> ResponseEntity.status(302)
+            .header("Location", auth.publicUrl() + "/signin?error=" + enc(message)).header("Cache-Control", "no-store").build();
+        if (!googleConfigured()) return back.apply("Google sign-in is not configured");
+        // The state token was issued for the pseudo-user "oauth:<state>"; consuming it proves this browser started the flow.
+        List<Map<String, Object>> stateRows = state == null ? List.of() : jdbc.queryForList("SELECT token_hash FROM one_time_token WHERE kind = 'oauth-state' AND user_id = ?", "oauth:" + state);
+        if (stateRows.isEmpty()) return back.apply("Sign-in expired. Please try again.");
+        jdbc.update("DELETE FROM one_time_token WHERE kind = 'oauth-state' AND user_id = ?", "oauth:" + state);
+        if (code == null || code.isBlank()) return back.apply("Google sign-in was cancelled");
+        try {
+            String form = "code=" + enc(code) + "&client_id=" + enc(settings.get("GOOGLE_CLIENT_ID")) + "&client_secret=" + enc(settings.get("GOOGLE_CLIENT_SECRET"))
+                + "&redirect_uri=" + enc(googleRedirectUri()) + "&grant_type=authorization_code";
+            var tokenResponse = http.send(java.net.http.HttpRequest.newBuilder(java.net.URI.create("https://oauth2.googleapis.com/token")).timeout(Duration.ofSeconds(15))
+                .header("Content-Type", "application/x-www-form-urlencoded").POST(java.net.http.HttpRequest.BodyPublishers.ofString(form)).build(), java.net.http.HttpResponse.BodyHandlers.ofString());
+            JsonNode tokens = json.readTree(tokenResponse.body());
+            if (tokenResponse.statusCode() != 200 || !tokens.hasNonNull("access_token")) return back.apply("Google did not accept the sign-in");
+            var profileResponse = http.send(java.net.http.HttpRequest.newBuilder(java.net.URI.create("https://openidconnect.googleapis.com/v1/userinfo")).timeout(Duration.ofSeconds(15))
+                .header("Authorization", "Bearer " + tokens.get("access_token").asText()).GET().build(), java.net.http.HttpResponse.BodyHandlers.ofString());
+            JsonNode profile = json.readTree(profileResponse.body());
+            if (!profile.path("email_verified").asBoolean() || profile.path("email").asText().isBlank()) return back.apply("Your Google email address is not verified");
+            String email = profile.path("email").asText().toLowerCase();
+            String subject = profile.path("sub").asText();
+            List<Map<String, Object>> found = jdbc.queryForList("SELECT id FROM app_user WHERE google_subject = ? OR email = ? ORDER BY CASE WHEN google_subject = ? THEN 0 ELSE 1 END", subject, email, subject);
+            String userId;
+            if (found.isEmpty()) {
+                userId = UUID.randomUUID().toString();
+                String name = profile.path("name").asText(email.split("@")[0]);
+                name = name.substring(0, Math.min(100, name.length()));
+                jdbc.update("INSERT INTO app_user (id, email, password_hash, display_name, email_verified, preferences, notification_prefs) VALUES (?, ?, '!google', ?, TRUE, ?, '{}')",
+                    userId, email, name, "{\"theme\":\"system\"}");
+                auth.createWorkspace(userId, firstName(name) + "'s studio");
+            } else userId = (String) found.get(0).get("id");
+            jdbc.update("UPDATE app_user SET google_subject = ?, email_verified = TRUE WHERE id = ?", subject, userId);
+            String session = auth.createSession(userId, request);
+            return ResponseEntity.status(302).header("Location", auth.publicUrl() + "/signin#token=" + session).header("Cache-Control", "no-store").build();
+        } catch (Exception e) {
+            log.warn("Google sign-in failed: {}", e.getMessage());
+            return back.apply("Google sign-in failed. Please try again.");
+        }
+    }
 
     // ---- Signed-in account endpoints -------------------------------------------------------
 

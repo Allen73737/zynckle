@@ -83,15 +83,15 @@ export const PLATFORM_TOPICS: Topic[] = [
     id: 3,
     category: 'architecture',
     categoryLabel: 'Core Architecture',
-    title: 'Local-First Dual-Engine Fallback Store',
+    title: 'Server-Backed Workspace Store',
     icon: Database,
-    badge: '100% Zero-Dead-End Resilience',
-    summary: 'Dual-engine local persistence guarantees complete offline functionality even if the server disconnects.',
-    detail: 'Built with an offline-first state philosophy. If the backend is unreachable or local development servers stop, client-side local stores automatically take over state hydration, task creation, and document drafting. Upon reconnection, changes merge conflict-free into the master workspace journal without data loss.',
+    badge: 'Honest errors, no fake data',
+    summary: 'Every project, task and document lives in the Spring Boot backend, shared by the whole workspace.',
+    detail: 'All state is stored on the server and pushed to everyone in the workspace over WebSockets. If the backend is unreachable, Zynckle says so plainly instead of showing made-up placeholder data, so problems are never hidden.',
     specs: [
-      { label: 'Offline Mode', value: 'Full Local-First Fallback Engine' },
-      { label: 'Storage', value: 'IndexedDB & LocalStorage Journal' },
-      { label: 'Resilience', value: 'Zero UI freezes on network dropout' }
+      { label: 'Persistence', value: 'Spring Boot + H2 / PostgreSQL' },
+      { label: 'Live updates', value: 'WebSocket events and Yjs co-editing' },
+      { label: 'Failures', value: 'Reported to the user, never masked' }
     ],
     actionLink: '/today',
     actionText: 'Open Daily Edition'
@@ -104,7 +104,7 @@ export const PLATFORM_TOPICS: Topic[] = [
     icon: FileCode2,
     badge: '< 5ms Instant Vector PDF',
     summary: 'Pure JavaScript LaTeX-to-PDF compilation delivering instant typography without OS process freezes.',
-    detail: 'Traditional LaTeX systems (MiKTeX, TeX Live) spawn external OS processes that freeze single-threaded Node event loops for 25+ seconds and fail on Windows user permissions. Zynckle features an integrated pure-JS vector compiler generating standard PDF 1.4 streams in under 5ms, backed by in-browser client fallback (buildFallbackPdf) and in-flight request cancellation.',
+    detail: 'Traditional LaTeX systems (MiKTeX, TeX Live) spawn external OS processes that freeze single-threaded Node event loops for 25+ seconds and fail on Windows user permissions. Zynckle features an integrated pure-JS vector compiler generating standard PDF 1.4 streams in under 5ms, with in-flight request cancellation. Compile errors are reported, never replaced with a placeholder PDF.',
     specs: [
       { label: 'Execution Speed', value: '~4-5ms per compile' },
       { label: 'PDF Format', value: 'Standard PDF 1.4 Vector Typography' },
@@ -428,7 +428,7 @@ export default function AboutStudio({ notify: _notify }: { notify?: (msg: string
         <div className="telemetry-card">
           <span className="telemetry-label">PLATFORM RUNTIME</span>
           <span className="telemetry-value">v2.4.0 Production</span>
-          <span className="telemetry-status ok">● 100% Local-First Active</span>
+          <span className="telemetry-status ok">● Server-backed workspace</span>
         </div>
         <div className="telemetry-card">
           <span className="telemetry-label">TEX COMPILATION ENGINE</span>
@@ -565,7 +565,7 @@ export default function AboutStudio({ notify: _notify }: { notify?: (msg: string
           <div className="eyebrow">HIGH-ASSURANCE OPEN PLATFORM</div>
           <h3>Designed for Technical Writers, Architects &amp; Research Engineers</h3>
           <p>
-            Zynckle replaces fragmented software suites with a pitch-black, local-first operating system.
+            Zynckle replaces fragmented software suites with one pitch-black, connected workspace.
             Every tool is wired together with zero latency, zero process blocking, and zero vendor lock-in.
           </p>
           <div className="footer-links-row">

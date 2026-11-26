@@ -46,7 +46,7 @@ Modern software teams, researchers, and technical writers are forced to juggle f
 ```
 frontend/   React 18 · TypeScript · Vite 6 · Tiptap (ProseMirror) + Yjs · CodeMirror 6 · Tailwind CSS
 backend/    Spring Boot 3.4.1 (Java 17 LTS) · Spring Security 6 · Spring Data JPA · H2 / PostgreSQL
-            Maven Wrapper (./mvnw.cmd & ./mvnw) · Flyway V1-V3 · Pure Vector LaTeX Compiler (<5ms)
+            Maven Wrapper (./mvnw.cmd & ./mvnw) · Flyway migrations · Pure Vector LaTeX Compiler (<5ms)
 ```
 
 ---
@@ -86,8 +86,9 @@ The backend is built with **Spring Boot 3.4.1** running on **Java 17 LTS (OpenJD
 
 1. **Embedded Zero-Config Relational Persistence**:
    - Pre-configured with an embedded H2 database operating in PostgreSQL compatibility mode (`jdbc:h2:file:./data/zynckle;MODE=PostgreSQL`).
-   - Automated schema bootstrapping via `DatabaseInitializer.java`, pre-seeding default demo workspaces, sample projects, tasks, and architectural documents on first run.
-   - Production-ready with Flyway migrations (`V1__initial_schema.sql`, `V2__workspace_features.sql`, `V3__platform_modules.sql`).
+   - The schema is managed by Flyway (`backend/src/main/resources/db/migration`) and applied on startup, on H2 and PostgreSQL alike. Databases created by older builds are baselined and upgraded automatically.
+   - New databases start empty: no demo data is seeded. Use **Load starter projects** on the Overview to explore with sample content.
+   - Schema changes go in a new file (`V5__description.sql`, …); never edit a migration that has already shipped.
 
 2. **Self-Contained Maven Wrapper**:
    - Run immediately with `./mvnw.cmd` (Windows) or `./mvnw` (Linux/macOS).
@@ -360,6 +361,20 @@ npm run dev
 ```
 
 Visit [http://localhost:5173](http://localhost:5173) in your browser. All API requests are automatically reverse-proxied to the Spring Boot backend on port 8080.
+
+### Run everything with Docker (PostgreSQL)
+
+```bash
+cp .env.example .env      # optional: AI keys, SMTP, Google sign-in, R2
+docker compose up --build
+# -> http://localhost:8081  (nginx serves the app and proxies /api, /ws and /collab)
+```
+
+Compose starts PostgreSQL 16, the API and the web app. Data lives in the `db-data` and `api-data` volumes. Set `POSTGRES_PASSWORD` and `ZYNCKLE_PUBLIC_URL` in `.env` before exposing it beyond your machine.
+
+### Continuous integration
+
+`.github/workflows/ci.yml` runs on every push and pull request: it builds the backend, starts it against a fresh PostgreSQL database to prove the migrations apply, smoke-tests sign-up, CSV import and public share links, type-checks and builds the frontend, and builds both Docker images.
 
 ---
 

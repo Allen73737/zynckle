@@ -3,6 +3,7 @@ package com.zynckle.api.task;
 import com.zynckle.api.common.Activity;
 import com.zynckle.api.common.ApiException;
 import com.zynckle.api.common.Validate;
+import com.zynckle.api.realtime.RealtimeHub;
 import com.zynckle.api.security.CurrentUser;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -20,10 +21,14 @@ public class TaskController {
     private static final Pattern MENTION = Pattern.compile("@([\\p{L}][\\p{L}.'-]*)");
     private final JdbcTemplate jdbc;
     private final Activity activity;
+    private final RealtimeHub hub;
+    private final TaskFeatures features;
 
-    public TaskController(JdbcTemplate jdbc, Activity activity) {
+    public TaskController(JdbcTemplate jdbc, Activity activity, RealtimeHub hub, TaskFeatures features) {
         this.jdbc = jdbc;
         this.activity = activity;
+        this.hub = hub;
+        this.features = features;
     }
 
     @GetMapping
@@ -58,11 +63,14 @@ public class TaskController {
                 activity.notify(me, List.of(assignee), "task", "Task assigned to you", String.valueOf(before.get("title")), "/projects/" + before.get("projectId") + "?task=" + id);
             }
         }
+        if (body.containsKey("recurrence")) jdbc.update("UPDATE task SET recurrence = ? WHERE id = ?", TaskFeatures.recurrence(body.get("recurrence")), id);
         Map<String, Object> saved = TaskViews.find(jdbc, me, id);
+        if (!Boolean.TRUE.equals(before.get("done")) && Boolean.TRUE.equals(saved.get("done"))) features.onCompleted(me, id);
         if (!Objects.equals(before.get("status"), saved.get("status"))) {
             activity.log(me, "Done".equals(saved.get("status")) ? "completed task" : "moved task to " + saved.get("status"), "task", String.valueOf(saved.get("title")), false, (String) saved.get("projectId"));
         }
         jdbc.update("UPDATE project SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", saved.get("projectId"));
+        hub.publish(me.workspaceId(), "task.changed", saved, null);
         return saved;
     }
 
@@ -73,6 +81,7 @@ public class TaskController {
         jdbc.update("DELETE FROM task_comment WHERE task_id = ?", id);
         jdbc.update("DELETE FROM task WHERE id = ?", id);
         activity.log(me, "deleted task", "task", String.valueOf(task.get("title")), false, (String) task.get("projectId"));
+        hub.publish(me.workspaceId(), "task.deleted", Map.of("id", id), null);
         return Map.of("deleted", true);
     }
 
@@ -110,7 +119,11 @@ public class TaskController {
         activity.notify(me, watchers, "comment", "New comment on a task", me.name() + " on " + task.get("title"), link);
         activity.log(me, "commented on", "task", String.valueOf(task.get("title")), false, (String) task.get("projectId"));
         Map<String, Object> created = jdbc.queryForList("SELECT * FROM task_comment WHERE id = ?", commentId).get(0);
-        return ResponseEntity.status(201).body(comment(me, created));
+        Map<String, Object> view = comment(me, created);
+        Map<String, Object> shared = new LinkedHashMap<>(view);
+        shared.put("mine", false); // recipients are other people
+        hub.publish(me.workspaceId(), "comment.added", Map.of("taskId", id, "comment", shared), null);
+        return ResponseEntity.status(201).body(view);
     }
 
     /** "@Ada", "@ada.lovelace" (email handle) or a first name, matched against workspace members. */

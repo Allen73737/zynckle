@@ -1,0 +1,53 @@
+# Zynckle with PostgreSQL:  docker compose up --build   →  http://localhost:8081
+#
+# Secrets and optional integrations (AI keys, SMTP, Google sign-in, R2) are read from .env
+# in this folder if it exists — see .env.example. Database settings below always win.
+name: zynckle
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: zynckle
+      POSTGRES_USER: zynckle
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-zynckle-local-only}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zynckle -d zynckle"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: jdbc:postgresql://db:5432/zynckle
+      DATABASE_USERNAME: zynckle
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-zynckle-local-only}
+      FLYWAY_ENABLED: "true"
+      ZYNCKLE_PUBLIC_URL: ${ZYNCKLE_PUBLIC_URL:-http://localhost:8081}
+      ZYNCKLE_FRONTEND_ORIGIN: ${ZYNCKLE_PUBLIC_URL:-http://localhost:8081}
+    volumes:
+      - api-data:/app/data
+
+  web:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${ZYNCKLE_PORT:-8081}:80"
+
+volumes:
+  db-data:
+  api-data:

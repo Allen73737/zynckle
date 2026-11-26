@@ -106,14 +106,14 @@ export default function SettingsStudio({ account, workspace, workspaceId, worksp
             <div className="eyebrow">ABOUT ZYNCKLE &amp; PLATFORM REFERENCE</div>
             <h2>The Unified Workspace Paradigm</h2>
             <p>
-              Zynckle converges documents, LaTeX typesetting, agile task boards, code ide, and workspace-aware AI into a single local-first operating system.
+              Zynckle converges documents, LaTeX typesetting, agile task boards, code ide, and workspace-aware AI into a single workspace.
             </p>
 
             <div className="about-telemetry-grid" style={{ margin: '14px 0 22px 0' }}>
               <div className="telemetry-card">
                 <span className="telemetry-label">SYSTEM BUILD</span>
                 <span className="telemetry-value">v2.4.0 Production</span>
-                <span className="telemetry-status ok">● Local-First Resilience</span>
+                <span className="telemetry-status ok">● Server-backed workspace</span>
               </div>
               <div className="telemetry-card">
                 <span className="telemetry-label">TEX VECTOR ENGINE</span>

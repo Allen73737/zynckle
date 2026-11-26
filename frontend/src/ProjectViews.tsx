@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { NavLink, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Archive, ArchiveRestore, ArrowRight, Calendar, GanttChart, Check, FolderKanban, LayoutGrid, List, MessageSquare, Pencil, Plus, Save, Search, Tag, Trash2, User, X, Activity as ActivityIcon, Sparkles } from 'lucide-react';
+import { Archive, ArchiveRestore, ArrowRight, Calendar, CalendarDays, ChevronLeft, ChevronRight, GanttChart, Check, FolderKanban, LayoutGrid, List, MessageSquare, Pencil, Plus, Save, Search, Tag, Trash2, Upload, User, X, Activity as ActivityIcon, Sparkles } from 'lucide-react';
 import { api, errorMessage, localDate, timeAgo, type Member } from './lib/api';
 import { useRealtimeEvent } from './lib/realtime';
+
+const ImportDialog = lazy(() => import('./ImportDialog'));
 
 export type Project = { id: string | number; name: string; description: string; color: string; progress: number; due: string; members: number; status: string; tags?: string[]; memberIds?: string[]; memberList?: Member[]; archived?: boolean; ownerId?: string; taskCount?: number; doneCount?: number };
 export type Task = { id: string | number; title: string; project: string; date: string; priority: string; done: boolean; status?: string; due?: string; projectId?: string; description?: string; assigneeId?: string | null; assignee?: Member | null; commentCount?: number; position?: number; createdAt?: string };
@@ -44,7 +46,7 @@ export function ProjectDetail({ projects, tasks, onEdit, onTask, onMove, onOpenT
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const members = useMembers();
-  const [view, setView] = useState<'board' | 'list' | 'timeline' | 'activity'>(() => (localStorage.getItem('zynckle-project-view') as 'board' | 'list' | 'timeline') || 'board');
+  const [view, setView] = useState<'board' | 'list' | 'timeline' | 'calendar' | 'activity'>(() => (localStorage.getItem('zynckle-project-view') as 'board' | 'list' | 'timeline' | 'calendar') || 'board');
   const [filter, setFilter] = useState('');
   const [priority, setPriority] = useState('Any');
   const [assignee, setAssignee] = useState('Anyone');
@@ -53,6 +55,8 @@ export function ProjectDetail({ projects, tasks, onEdit, onTask, onMove, onOpenT
   const [activity, setActivity] = useState<ActivityItem[] | null>(null);
   const [tagInput, setTagInput] = useState('');
   const [membersOpen, setMembersOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [announce, setAnnounce] = useState('');
   const project = projects.find(p => String(p.id) === id);
   useEffect(() => { localStorage.setItem('zynckle-project-view', view === 'activity' ? 'board' : view); }, [view]);
   useEffect(() => { if (view === 'activity' && project) api<ActivityItem[]>(`/api/activity?projectId=${project.id}&limit=60`).then(setActivity).catch(() => setActivity([])); }, [view, project?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -70,9 +74,17 @@ export function ProjectDetail({ projects, tasks, onEdit, onTask, onMove, onOpenT
   const addTag = (e: React.FormEvent) => { e.preventDefault(); const tag = tagInput.trim(); if (!tag) return; patch({ tags: [...(project.tags || []), tag] }, 'Tag could not be added'); setTagInput(''); };
   const overdue = items.filter(isOverdue).length;
 
-  const card = (t: Task) => <div className={`kanban-card zy-card ${dragging === String(t.id) ? 'dragging' : ''}`} key={t.id} draggable={canEdit} tabIndex={0} role="button" aria-label={`${t.title}, ${statusOf(t)}. Press Enter to open.`}
+  const card = (t: Task) => <div className={`kanban-card zy-card ${dragging === String(t.id) ? 'dragging' : ''}`} key={t.id} draggable={canEdit} tabIndex={0} role="button" aria-label={`${t.title}, ${statusOf(t)}. Press Enter to open${canEdit ? ', Alt plus left or right arrow to move between columns' : ''}.`}
     onDragStart={e => { e.dataTransfer.setData('text/plain', String(t.id)); e.dataTransfer.effectAllowed = 'move'; setDragging(String(t.id)); }} onDragEnd={() => { setDragging(null); setOver(null); }}
-    onClick={() => onOpenTask(t)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenTask(t); } }}>
+    onClick={() => onOpenTask(t)} onKeyDown={e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenTask(t); return; }
+      // Keyboard alternative to drag and drop.
+      if (canEdit && e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        e.preventDefault();
+        const next = COLUMNS[COLUMNS.indexOf(statusOf(t)) + (e.key === 'ArrowRight' ? 1 : -1)];
+        if (next) { onMove(String(t.id), next); setAnnounce(`${t.title} moved to ${next}`); }
+      }
+    }}>
     <span className={`kanban-tag zy-priority-${t.priority.toLowerCase()}`}>{t.priority}</span><strong>{t.title}</strong>
     <div><span title={t.assignee?.name || 'Unassigned'} className={t.assignee ? '' : 'zy-unassigned'}>{t.assignee?.avatar || <User size={9}/>}</span><small className={isOverdue(t) ? 'zy-overdue' : ''}>{t.commentCount ? <><MessageSquare size={9}/> {t.commentCount} · </> : null}{t.date && t.date !== 'No date' ? shortDate(t.date) : 'No date'}</small></div></div>;
 
@@ -88,17 +100,80 @@ export function ProjectDetail({ projects, tasks, onEdit, onTask, onMove, onOpenT
         {membersOpen && <div className="zy-dropdown" onMouseLeave={() => setMembersOpen(false)}>{members.map(m => <label key={m.id} className="zy-check"><input type="checkbox" checked={(project.memberIds || []).includes(m.id)} onChange={e => patch({ memberIds: e.target.checked ? [...(project.memberIds || []), m.id] : (project.memberIds || []).filter(x => x !== m.id) }, 'Members could not be updated')}/>{m.name}</label>)}</div>}</div>
       <div><span>Tasks</span><strong>{items.length} tasks{overdue ? <em className="zy-overdue"> · {overdue} overdue</em> : ''}</strong></div></div>
     <div className="kanban-head"><div><div className="eyebrow">THE WORK</div><h2>Tasks & milestones</h2></div>
-      <div className="zy-head-actions"><div className="zy-segmented small" role="tablist"><button className={view === 'board' ? 'active' : ''} onClick={() => setView('board')}><LayoutGrid size={12}/> Board</button><button className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}><List size={12}/> List</button><button className={view === 'timeline' ? 'active' : ''} onClick={() => setView('timeline')}><GanttChart size={12}/> Timeline</button><button className={view === 'activity' ? 'active' : ''} onClick={() => setView('activity')}><ActivityIcon size={12}/> Activity</button></div>{canEdit && <button className="button-secondary" onClick={() => onTask(project.name)}><Plus size={15}/> Add task</button>}</div></div>
+      <div className="zy-head-actions"><div className="zy-segmented small" role="tablist"><button className={view === 'board' ? 'active' : ''} onClick={() => setView('board')}><LayoutGrid size={12}/> Board</button><button className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}><List size={12}/> List</button><button className={view === 'timeline' ? 'active' : ''} onClick={() => setView('timeline')}><GanttChart size={12}/> Timeline</button><button className={view === 'calendar' ? 'active' : ''} onClick={() => setView('calendar')}><CalendarDays size={12}/> Calendar</button><button className={view === 'activity' ? 'active' : ''} onClick={() => setView('activity')}><ActivityIcon size={12}/> Activity</button></div>{canEdit && <button className="button-secondary" onClick={() => setImporting(true)} title="Import tasks from a CSV export (Notion, Trello, Linear, Asana)"><Upload size={15}/> Import</button>}{canEdit && <button className="button-secondary" onClick={() => onTask(project.name)}><Plus size={15}/> Add task</button>}</div></div>
     {view !== 'activity' && <div className="zy-board-filters"><label className="zy-search-field"><Search size={13}/><input value={filter} onChange={e => setFilter(e.target.value)} placeholder="Filter tasks" aria-label="Filter tasks"/></label>
       <select value={priority} onChange={e => setPriority(e.target.value)} aria-label="Priority filter"><option>Any</option><option>Urgent</option><option>High</option><option>Normal</option><option>Low</option></select>
       <select value={assignee} onChange={e => setAssignee(e.target.value)} aria-label="Assignee filter"><option>Anyone</option><option value="Me">Assigned to me</option><option>Unassigned</option>{members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select>
       {(filter || priority !== 'Any' || assignee !== 'Anyone') && <button className="text-button" onClick={() => { setFilter(''); setPriority('Any'); setAssignee('Anyone'); }}><X size={12}/> Clear</button>}<span className="zy-muted-note">{visible.length} of {items.length}</span></div>}
+    <p className="sr-only" aria-live="polite">{announce}</p>
     {view === 'board' && <div className="kanban-board">{COLUMNS.map(col => { const colItems = visible.filter(t => statusOf(t) === col).sort((a, b) => (a.position || 0) - (b.position || 0)); return <div className={`kanban-column ${over === col ? 'zy-drop' : ''}`} key={col} onDragOver={e => { if (!canEdit) return; e.preventDefault(); setOver(col); }} onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOver(null); }} onDrop={e => { const taskId = e.dataTransfer.getData('text/plain'); setOver(null); setDragging(null); if (taskId) onMove(taskId, col); }}>
       <div className="kanban-column-title"><span>{col}</span><span>{colItems.length}</span></div>{colItems.map(card)}{canEdit && col !== 'Done' && <button className="zy-add-card" onClick={() => onTask(project.name)}><Plus size={11}/> Add</button>}</div>; })}</div>}
     {view === 'list' && <div className="task-page-list">{visible.map(t => <div key={t.id} className={`task-page-row ${statusOf(t) === 'Done' ? 'task-done' : ''}`}><button className="task-check" onClick={() => canEdit && onMove(String(t.id), statusOf(t) === 'Done' ? 'To do' : 'Done')} aria-label={statusOf(t) === 'Done' ? 'Reopen task' : 'Complete task'}>{statusOf(t) === 'Done' && <Check size={12}/>}</button><span onClick={() => onOpenTask(t)}><strong>{t.title}</strong><small>{statusOf(t)}{t.assignee ? ` · ${t.assignee.name}` : ''}</small></span><span className={`priority priority-${t.priority.toLowerCase()}`}/><time className={isOverdue(t) ? 'zy-overdue' : ''}>{shortDate(t.date)}</time></div>)}{!visible.length && <p className="welcome-sub zy-pad">No tasks match.</p>}</div>}
     {view === 'timeline' && <Timeline tasks={visible} onOpen={onOpenTask}/>}
+    {view === 'calendar' && <TaskCalendar tasks={visible} onOpen={onOpenTask} canEdit={canEdit}/>}
     {view === 'activity' && <ActivityFeed items={activity}/>}
-    {items.length === 0 && view === 'board' && <p className="welcome-sub">No tasks in this project yet. Add one to get started.</p>}</>;
+    {items.length === 0 && view === 'board' && <p className="welcome-sub">No tasks in this project yet. Add one, or import a CSV from Notion, Trello, Linear or Asana.</p>}
+    {importing && <Suspense fallback={null}><ImportDialog projectId={String(project.id)} projectName={project.name} onClose={() => setImporting(false)}/></Suspense>}</>;
+}
+
+/**
+ * Month calendar: tasks sit on their due date. Drag a task to another day to reschedule it
+ * (or open it and change the date, which also works from the keyboard).
+ */
+export function TaskCalendar({ tasks, onOpen, canEdit, showProject = false }: { tasks: Task[]; onOpen: (t: Task) => void; canEdit: boolean; showProject?: boolean }) {
+  const today = localDate();
+  const [month, setMonth] = useState(() => today.slice(0, 7));
+  const [over, setOver] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const [year, mon] = month.split('-').map(Number);
+  const first = new Date(year, mon - 1, 1);
+  const lead = (first.getDay() + 6) % 7; // Monday-first weeks
+  const daysInMonth = new Date(year, mon, 0).getDate();
+  const cells = Math.ceil((lead + daysInMonth) / 7) * 7;
+  const days = Array.from({ length: cells }, (_, i) => localDate(new Date(year, mon - 1, 1 - lead + i)));
+  const isDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
+  const byDay = useMemo(() => {
+    const map = new Map<string, Task[]>();
+    for (const t of tasks) if (isDate(t.date)) map.set(t.date, [...(map.get(t.date) || []), t]);
+    return map;
+  }, [tasks]);
+  const inMonth = tasks.filter(t => t.date?.startsWith(month)).length;
+  const undated = tasks.filter(t => !isDate(t.date) && statusOf(t) !== 'Done');
+  const shift = (delta: number) => setMonth(localDate(new Date(year, mon - 1 + delta, 1)).slice(0, 7));
+  const reschedule = async (id: string, date: string) => {
+    const task = tasks.find(t => String(t.id) === id);
+    if (!task || task.date === date) return;
+    setError('');
+    try { await api(`/api/tasks/${id}`, { method: 'PATCH', body: { date } }); window.dispatchEvent(new CustomEvent('zynckle:workspace-changed')); }
+    catch (e) { setError(errorMessage(e, 'The task could not be rescheduled')); }
+  };
+  const drag = (t: Task) => (e: React.DragEvent) => { e.dataTransfer.setData('text/plain', String(t.id)); e.dataTransfer.effectAllowed = 'move'; };
+  const label = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' }).format(first);
+  return <div className="zy-calendar">
+    <div className="zy-cal-head">
+      <div className="zy-cal-nav"><button className="icon-button" onClick={() => shift(-1)} aria-label="Previous month"><ChevronLeft size={15}/></button><h3 aria-live="polite">{label}</h3><button className="icon-button" onClick={() => shift(1)} aria-label="Next month"><ChevronRight size={15}/></button>
+        {month !== today.slice(0, 7) && <button className="text-button" onClick={() => setMonth(today.slice(0, 7))}>Today</button>}</div>
+      <span className="zy-muted-note">{inMonth} task{inMonth === 1 ? '' : 's'} due this month{canEdit ? ' · drag to reschedule' : ''}</span>
+    </div>
+    {error && <p className="zy-inline-error" role="alert">{error}</p>}
+    <div className="zy-cal-scroll"><div className="zy-cal-grid" role="grid" aria-label={`Tasks in ${label}`}>
+      {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => <div key={d} className="zy-cal-dow" role="columnheader">{d}</div>)}
+      {days.map(day => {
+        const list = byDay.get(day) || [];
+        return <div key={day} role="gridcell" aria-label={`${new Date(`${day}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}, ${list.length} task${list.length === 1 ? '' : 's'}`}
+          className={`zy-cal-day ${day.startsWith(month) ? '' : 'outside'} ${day === today ? 'today' : ''} ${over === day ? 'zy-drop' : ''}`}
+          onDragOver={e => { if (!canEdit) return; e.preventDefault(); setOver(day); }} onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOver(null); }}
+          onDrop={e => { e.preventDefault(); setOver(null); const id = e.dataTransfer.getData('text/plain'); if (id) reschedule(id, day); }}>
+          <span className="zy-cal-num">{Number(day.slice(8))}</span>
+          {list.slice(0, 4).map(t => <button key={t.id} draggable={canEdit} onDragStart={drag(t)}
+            className={`zy-cal-task zy-priority-${t.priority.toLowerCase()} ${statusOf(t) === 'Done' ? 'done' : isOverdue(t) ? 'late' : ''}`} onClick={() => onOpen(t)} title={`${t.title}${showProject ? ` · ${t.project}` : ''} · ${statusOf(t)}`}>
+            <span>{t.title}</span></button>)}
+          {list.length > 4 && <button className="zy-cal-more" onClick={() => onOpen(list[4])}>+{list.length - 4} more</button>}
+        </div>;
+      })}
+    </div></div>
+    {undated.length > 0 && <div className="zy-tl-undated"><div className="eyebrow">UNSCHEDULED · {undated.length}{canEdit ? ' · drag onto a day' : ''}</div>{undated.map(t => <button key={t.id} draggable={canEdit} onDragStart={drag(t)} onClick={() => onOpen(t)}>{t.title}<small>{statusOf(t)}</small></button>)}</div>}
+  </div>;
 }
 
 /** Day-ruler timeline: each dated task becomes a bar from its creation to its due date. */
@@ -138,7 +213,9 @@ export function Tasks({ tasks, search, onToggle, onDelete, onOpen, onNew, accoun
   const [scope, setScope] = useState<'mine' | 'all'>(() => (localStorage.getItem('zynckle-task-scope') as 'mine' | 'all') || 'all');
   const [state, setState] = useState<'open' | 'done' | 'all'>('open');
   const [sort, setSort] = useState<'due' | 'priority' | 'recent'>('due');
+  const [layout, setLayout] = useState<'list' | 'calendar'>(() => localStorage.getItem('zynckle-task-layout') === 'calendar' ? 'calendar' : 'list');
   useEffect(() => { localStorage.setItem('zynckle-task-scope', scope); }, [scope]);
+  useEffect(() => { localStorage.setItem('zynckle-task-layout', layout); }, [layout]);
   const rank: Record<string, number> = { Urgent: 0, High: 1, Normal: 2, Low: 3 };
   const visible = tasks.filter(t => `${t.title} ${t.project}`.toLowerCase().includes(search.trim().toLowerCase()) && (scope === 'all' || t.assigneeId === accountId) && (state === 'all' || (state === 'done' ? statusOf(t) === 'Done' : statusOf(t) !== 'Done')))
     .sort((a, b) => sort === 'priority' ? (rank[a.priority] ?? 9) - (rank[b.priority] ?? 9) : sort === 'recent' ? String(b.createdAt || '').localeCompare(String(a.createdAt || '')) : (/^\d/.test(a.date) ? a.date : '9999').localeCompare(/^\d/.test(b.date) ? b.date : '9999'));
@@ -147,8 +224,10 @@ export function Tasks({ tasks, search, onToggle, onDelete, onOpen, onNew, accoun
     <div className="section-heading"><div><div className="eyebrow">{open} OPEN · {visible.length - open} COMPLETE</div><h2>{scope === 'mine' ? 'Assigned to me' : 'Today & coming up'}</h2></div>
       <div className="zy-filter-row"><div className="zy-segmented small"><button className={scope === 'all' ? 'active' : ''} onClick={() => setScope('all')}>Everyone</button><button className={scope === 'mine' ? 'active' : ''} onClick={() => setScope('mine')}>Mine</button></div>
         <div className="zy-segmented small"><button className={state === 'open' ? 'active' : ''} onClick={() => setState('open')}>Open</button><button className={state === 'done' ? 'active' : ''} onClick={() => setState('done')}>Done</button><button className={state === 'all' ? 'active' : ''} onClick={() => setState('all')}>All</button></div>
+        <div className="zy-segmented small" role="tablist" aria-label="Layout"><button className={layout === 'list' ? 'active' : ''} onClick={() => setLayout('list')}><List size={12}/> List</button><button className={layout === 'calendar' ? 'active' : ''} onClick={() => setLayout('calendar')}><CalendarDays size={12}/> Calendar</button></div>
         <select className="zy-select-sm" value={sort} onChange={e => setSort(e.target.value as 'due')} aria-label="Sort tasks"><option value="due">By due date</option><option value="priority">By priority</option><option value="recent">Recently added</option></select></div></div>
-    <div className="task-page-list">{visible.map(t => <div key={t.id} className={`task-page-row ${t.done ? 'task-done' : ''}`}><button className="task-check" onClick={() => onToggle(t.id)} aria-label={t.done ? 'Reopen task' : 'Complete task'} disabled={!canEdit}>{t.done && <Check size={12}/>}</button><span onClick={() => onOpen(t)}><strong>{t.title}</strong><small>{t.project} · {statusOf(t)}{t.assignee ? ` · ${t.assignee.name}` : ''}</small></span><span className={`priority priority-${t.priority.toLowerCase()}`} title={`${t.priority} priority`}/><time className={isOverdue(t) ? 'zy-overdue' : ''}>{shortDate(t.date)}</time><button className="text-button" onClick={() => onOpen(t)}><MessageSquare size={12}/>{t.commentCount ? ` ${t.commentCount}` : ''}</button>{canEdit && <button className="icon-button danger" onClick={() => onDelete(t.id)} aria-label={`Delete ${t.title}`} title="Delete task"><Trash2 size={14}/></button>}</div>)}
+    {layout === 'calendar' && visible.length > 0 && <TaskCalendar tasks={visible} onOpen={onOpen} canEdit={canEdit} showProject/>}
+    <div className="task-page-list" hidden={layout === 'calendar' && visible.length > 0}>{visible.map(t => <div key={t.id} className={`task-page-row ${t.done ? 'task-done' : ''}`}><button className="task-check" onClick={() => onToggle(t.id)} aria-label={t.done ? 'Reopen task' : 'Complete task'} disabled={!canEdit}>{t.done && <Check size={12}/>}</button><span onClick={() => onOpen(t)}><strong>{t.title}</strong><small>{t.project} · {statusOf(t)}{t.assignee ? ` · ${t.assignee.name}` : ''}</small></span><span className={`priority priority-${t.priority.toLowerCase()}`} title={`${t.priority} priority`}/><time className={isOverdue(t) ? 'zy-overdue' : ''}>{shortDate(t.date)}</time><button className="text-button" onClick={() => onOpen(t)}><MessageSquare size={12}/>{t.commentCount ? ` ${t.commentCount}` : ''}</button>{canEdit && <button className="icon-button danger" onClick={() => onDelete(t.id)} aria-label={`Delete ${t.title}`} title="Delete task"><Trash2 size={14}/></button>}</div>)}
       {!visible.length && <div className="empty-state"><Check size={23}/><h3>{search ? 'No tasks match your search' : scope === 'mine' ? 'Nothing assigned to you' : 'A little breathing room'}</h3><p>{search ? 'Try another title or project.' : 'Tasks from your projects will show up here.'}</p>{!search && canEdit && <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}><button className="button-primary" onClick={onNew}><Plus size={15}/> Add a task</button>{onSeedWorkspace && <button className="button-secondary" onClick={onSeedWorkspace}><Sparkles size={15}/> Load Starter Projects & Tasks</button>}</div>}</div>}</div></>;
 }
 

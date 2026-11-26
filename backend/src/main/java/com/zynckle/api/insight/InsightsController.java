@@ -117,6 +117,24 @@ public class InsightsController {
             return sb.toString();
         }
 
+        /** Facts for the weekly report: what finished, what was created, and what is at risk. */
+        public String weeklyContext(CurrentUser me) {
+            StringBuilder sb = new StringBuilder("Week ending " + LocalDate.now(ZoneOffset.UTC) + ".\n\nCompleted in the last 7 days:\n");
+            List<Map<String, Object>> done = jdbc.queryForList("""
+                SELECT t.title, p.name AS project FROM task t JOIN project p ON p.id = t.project_id
+                WHERE p.workspace_id = ? AND (t.done = TRUE OR t.status = 'Done') AND t.updated_at >= ? ORDER BY p.name""", me.workspaceId(), Timestamp.from(Instant.now().minus(7, ChronoUnit.DAYS)));
+            if (done.isEmpty()) sb.append("- nothing marked done\n");
+            for (Map<String, Object> t : done) sb.append("- ").append(t.get("title")).append(" (").append(t.get("project")).append(")\n");
+            sb.append("\nCreated in the last 7 days:\n");
+            List<Map<String, Object>> created = jdbc.queryForList("""
+                SELECT t.title, t.status, p.name AS project FROM task t JOIN project p ON p.id = t.project_id
+                WHERE p.workspace_id = ? AND t.created_at >= ? ORDER BY t.created_at DESC LIMIT 40""", me.workspaceId(), Timestamp.from(Instant.now().minus(7, ChronoUnit.DAYS)));
+            if (created.isEmpty()) sb.append("- none\n");
+            for (Map<String, Object> t : created) sb.append("- ").append(t.get("title")).append(" [").append(t.get("status")).append("] (").append(t.get("project")).append(")\n");
+            sb.append("\n").append(asContext(me));
+            return sb.toString();
+        }
+
         private static Map<String, Object> brief(Map<String, Object> t, LocalDate due, LocalDate today) {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("id", t.get("id")); item.put("title", t.get("title")); item.put("project", t.get("project")); item.put("projectId", t.get("projectId"));

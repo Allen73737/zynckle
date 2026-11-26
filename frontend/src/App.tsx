@@ -9,10 +9,11 @@ import QuickCapture from './QuickCapture';
 import ScratchpadDrawer from './components/ScratchpadDrawer';
 import { Projects, ProjectDetail, Tasks, TaskDrawer, type Project, type Task } from './ProjectViews';
 import type { Account } from './SettingsStudio';
-import { api, errorMessage, formatBytes, streamAI } from './lib/api';
+import { api, ApiError, errorMessage, formatBytes, streamAI } from './lib/api';
 import { useRealtime, useRealtimeEvent, sendPresence } from './lib/realtime';
 import './studio.css';
 import './signature.css';
+import './features.css';
 
 const DocumentsStudio = lazy(() => import('./DocumentsStudio'));
 const DriveStudio = lazy(() => import('./DriveStudio'));
@@ -28,6 +29,9 @@ const SettingsStudio = lazy(() => import('./SettingsStudio'));
 const AboutStudio = lazy(() => import('./AboutStudio'));
 const Markdown = lazy(() => import('./Markdown'));
 const TodayEdition = lazy(() => import('./TodayEdition'));
+const SharedDocument = lazy(() => import('./SharedDocument'));
+const OnboardingTour = lazy(() => import('./OnboardingTour'));
+const tourKey = (accountId?: string) => `zynckle-tour-done-${accountId || 'me'}`;
 
 type Doc = { id: string; title: string; body: string; updated: string };
 type ThemeChoice = 'light' | 'dark' | 'system';
@@ -58,6 +62,7 @@ export default function App() {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [scratchpadOpen, setScratchpadOpen] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
   const [openTask, setOpenTask] = useState<Task | null>(null);
   const [workspace, setWorkspace] = useState('Studio');
   const [workspaceId, setWorkspaceId] = useState('');
@@ -139,11 +144,18 @@ export default function App() {
       setTeamCount(teamData.members?.length || 1); setWorkspaces(workspaceData); setUnreadCount(notes.length);
       setApiStatus('Connected to workspace API'); setLoaded(true);
       api<{ usedBytes: number; quotaBytes: number; driver: string }>('/api/storage/usage').then(setStorage).catch(() => {});
-    } catch (error) { setApiStatus(errorMessage(error).includes('unreachable') ? 'API offline · start the backend' : 'Workspace data could not be loaded'); }
+    } catch (error) { setApiStatus(error instanceof ApiError && error.status === 0 ? 'API offline · start the backend' : 'Workspace data could not be loaded'); }
   }, [token]);
   const loadWorkspaceRef = useRef(loadWorkspace);
   loadWorkspaceRef.current = loadWorkspace;
   useEffect(() => { loadWorkspace(); }, [loadWorkspace]);
+
+  // First-run tour, once per account in this browser.
+  useEffect(() => {
+    if (!loaded || !account.id) return;
+    try { if (!localStorage.getItem(tourKey(account.id))) setTourOpen(true); } catch { /* storage unavailable: skip the tour */ }
+  }, [loaded, account.id]);
+  const closeTour = useCallback(() => { setTourOpen(false); try { localStorage.setItem(tourKey(account.id), 'yes'); } catch { /* ignore */ } }, [account.id]);
 
   // Live updates from teammates.
   useRealtimeEvent('task.changed', (task: Task) => setTasks(list => list.some(t => t.id === task.id) ? list.map(t => t.id === task.id ? normaliseTask(task) : t) : [normaliseTask(task), ...list]));
@@ -296,6 +308,9 @@ export default function App() {
     }
   };
 
+  // Public share links render without signing in and without the app chrome.
+  const shareToken = location.pathname.match(/^\/share\/([^/]+)/)?.[1];
+  if (shareToken) return <Suspense fallback={<PageLoader/>}><SharedDocument token={shareToken}/></Suspense>;
   if (!token) return <AuthGate onSuccess={authDone} theme={resolvedTheme} onTheme={toggleTheme}/>;
   const usedShare = storage ? Math.max(2, Math.min(100, (storage.usedBytes / storage.quotaBytes) * 100)) : 0;
   const othersOnline = presence.filter(p => p.id !== account.id);
@@ -567,7 +582,8 @@ export default function App() {
     {notificationsOpen && <NotificationsPanel token={token} onClose={() => setNotificationsOpen(false)} onUnreadChange={setUnreadCount}/>}
     {modal && <ProjectModal onClose={() => setModal(false)} onCreate={addProject}/>}
     {aiOpen && <AssistantPanel projects={projects} onClose={() => setAiOpen(false)}/>}
-    {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} actions={{ newProject: () => setModal(true), newTask: () => setCaptureOpen(true), toggleTheme, askAI: () => setAiOpen(true) }}/>}
+    {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} actions={{ newProject: () => setModal(true), newTask: () => setCaptureOpen(true), toggleTheme, askAI: () => setAiOpen(true), startTour: () => setTourOpen(true) }}/>}
+    {tourOpen && <Suspense fallback={null}><OnboardingTour onClose={closeTour}/></Suspense>}
     {captureOpen && <QuickCapture projects={projects} defaultProjectId={location.pathname.startsWith('/projects/') ? location.pathname.split('/')[2] : undefined} onClose={() => setCaptureOpen(false)} onCreated={task => { setTasks(items => [normaliseTask(task), ...items.filter(t => t.id !== task.id)]); notify(`Added “${task.title}”`); }}/>}
     {scratchpadOpen && <ScratchpadDrawer onClose={() => setScratchpadOpen(false)} notify={notify} onNavigate={navigate} />}
     {shortcutsOpen && <ShortcutSheet onClose={() => setShortcutsOpen(false)}/>}

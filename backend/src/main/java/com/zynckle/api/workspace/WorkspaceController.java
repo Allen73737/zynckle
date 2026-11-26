@@ -3,6 +3,7 @@ package com.zynckle.api.workspace;
 import com.zynckle.api.common.Activity;
 import com.zynckle.api.common.ApiException;
 import com.zynckle.api.common.Validate;
+import com.zynckle.api.integration.Mailer;
 import com.zynckle.api.security.AuthService;
 import com.zynckle.api.security.CurrentUser;
 import org.slf4j.Logger;
@@ -27,8 +28,10 @@ public class WorkspaceController {
     private final JdbcTemplate jdbc;
     private final AuthService auth;
     private final Activity activity;
+    private final Mailer mailer;
 
-    public WorkspaceController(JdbcTemplate jdbc, AuthService auth, Activity activity) {
+    public WorkspaceController(JdbcTemplate jdbc, AuthService auth, Activity activity, Mailer mailer) {
+        this.mailer = mailer;
         this.jdbc = jdbc;
         this.auth = auth;
         this.activity = activity;
@@ -219,9 +222,11 @@ public class WorkspaceController {
         }
         activity.log(me, "invited", "invite", email, true, null);
         log.info("[zynckle] Invite for {}: {}{}", email, auth.publicUrl(), inviteUrl);
+        boolean emailed = mailer.send(email, me.name() + " invited you to " + me.workspaceName() + " on Zynckle",
+            me.name() + " invited you to join the " + me.workspaceName() + " workspace as " + role.toLowerCase() + ".\n\nAccept the invite (sign in or create an account with this email address):\n" + auth.publicUrl() + inviteUrl + "\n\nThe invite expires in 7 days.");
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("id", id); out.put("email", email); out.put("role", role); out.put("inviteUrl", inviteUrl);
-        out.put("createdAt", Instant.now().toString()); out.put("expiresAt", expires.toInstant().toString()); out.put("emailDelivery", false);
+        out.put("createdAt", Instant.now().toString()); out.put("expiresAt", expires.toInstant().toString()); out.put("emailDelivery", emailed);
         return ResponseEntity.status(201).body(out);
     }
 

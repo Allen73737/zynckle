@@ -37,7 +37,6 @@ import { StreamLanguage, HighlightStyle, syntaxHighlighting } from '@codemirror/
 import { stex } from '@codemirror/legacy-modes/mode/stex';
 import { tags } from '@lezer/highlight';
 import { api, errorMessage, getToken, timeAgo } from './lib/api';
-import { buildFallbackPdf } from './lib/localStore';
 import { extractPdfText, decompileToLatex, POPULAR_CITATIONS, type CitationItem, type DecompileResult } from './lib/pdfDecompiler';
 
 type LatexDoc = { id: string; title: string; content: string; updated: string };
@@ -426,12 +425,8 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
       setCompileDurationMs(Math.max(1, Math.round(performance.now() - start)));
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        if (data.errors?.length) setErrors(data.errors);
+        setErrors(data.errors?.length ? data.errors : [{ line: null, message: data.error || `Compilation failed (${response.status})` }]);
         if (data.details) setLog(data.details);
-        // Instant local vector PDF generation fallback
-        const fallbackBlob = buildFallbackPdf(source.current);
-        const url = URL.createObjectURL(fallbackBlob);
-        setPdf(old => { if (old) URL.revokeObjectURL(old); return url; });
         return;
       }
       const blob = await response.blob();
@@ -440,9 +435,7 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
     } catch (err: any) {
       if (err.name === 'AbortError') return;
       setCompileDurationMs(Math.max(1, Math.round(performance.now() - start)));
-      const fallbackBlob = buildFallbackPdf(source.current);
-      const url = URL.createObjectURL(fallbackBlob);
-      setPdf(old => { if (old) URL.revokeObjectURL(old); return url; });
+      setErrors([{ line: null, message: 'Cannot reach the LaTeX compiler. Check that the backend is running.' }]);
     } finally {
       if (abortCtrl.current === controller) {
         setCompiling(false);
@@ -1147,6 +1140,7 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
                       onClick={openPdfNewTab}
                       disabled={!pdf}
                       title="Open full page PDF in new tab"
+                      aria-label="Open full page PDF in new tab"
                     >
                       <ExternalLink size={14} />
                     </button>

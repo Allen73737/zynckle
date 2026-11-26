@@ -243,7 +243,7 @@ export default function Dashboard({
         </section>
       )}
 
-      {loaded && projects.length > 0 && <DailyBrief/>}
+      {loaded && projects.length > 0 && <DailyBrief canEdit={canEdit}/>}
 
       {/* Four Balanced Key Metric Cards */}
       <section className="overview-bento-grid">

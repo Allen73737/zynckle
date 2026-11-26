@@ -150,7 +150,7 @@ public class RagService {
                 + (thread.isEmpty() ? "" : "\n\nComments:\n" + String.join("\n", thread.subList(Math.max(0, thread.size() - 20), thread.size())));
             list.add(new Source("task:" + t.get("id"), "task", str(t.get("id")), str(t.get("title")), "/projects/" + t.get("project_id") + "?task=" + t.get("id"), str(t.get("updated_at")), "prose", text));
         }
-        for (Map<String, Object> d : rows("SELECT id, title, content, type, updated_at FROM document WHERE workspace_id = ?", workspaceId)) {
+        for (Map<String, Object> d : rows("SELECT id, title, content, type, updated_at FROM document WHERE workspace_id = ? AND type <> 'latex-template' AND COALESCE(visibility, 'workspace') <> 'private'", workspaceId)) {
             boolean latex = "latex".equals(str(d.get("type")));
             String id = str(d.get("id"));
             String content = str(d.get("content"));

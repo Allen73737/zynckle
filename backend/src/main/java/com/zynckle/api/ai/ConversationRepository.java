@@ -2,7 +2,6 @@ package com.zynckle.api.ai;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.annotation.PostConstruct;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -25,41 +24,6 @@ public class ConversationRepository {
     public ConversationRepository(JdbcTemplate jdbc, ObjectMapper json) {
         this.jdbc = jdbc;
         this.json = json;
-    }
-
-    @PostConstruct
-    void createTables() {
-        jdbc.execute("""
-            CREATE TABLE IF NOT EXISTS ai_chat (
-                id VARCHAR(64) PRIMARY KEY,
-                workspace_id VARCHAR(64) NOT NULL,
-                user_id VARCHAR(64) NOT NULL,
-                title VARCHAR(240) NOT NULL,
-                mode VARCHAR(24) DEFAULT 'general',
-                context_json VARCHAR(4000) DEFAULT '{}',
-                pinned BOOLEAN DEFAULT FALSE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """);
-        jdbc.execute("""
-            CREATE TABLE IF NOT EXISTS ai_chat_message (
-                id VARCHAR(64) PRIMARY KEY,
-                chat_id VARCHAR(64) NOT NULL,
-                seq INT NOT NULL,
-                role VARCHAR(16) NOT NULL,
-                content TEXT NOT NULL,
-                provider VARCHAR(120),
-                model VARCHAR(160),
-                sources_json TEXT,
-                retrieval_json TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """);
-        jdbc.execute("ALTER TABLE ai_chat_message ADD COLUMN IF NOT EXISTS feedback INT DEFAULT 0");
-        jdbc.execute("ALTER TABLE ai_chat_message ADD COLUMN IF NOT EXISTS feedback_note VARCHAR(1000)");
-        jdbc.execute("CREATE INDEX IF NOT EXISTS ai_chat_user_idx ON ai_chat(workspace_id, user_id, updated_at)");
-        jdbc.execute("CREATE INDEX IF NOT EXISTS ai_chat_message_chat_idx ON ai_chat_message(chat_id, seq)");
     }
 
     private static String iso(Timestamp value) { return value == null ? Instant.now().toString() : value.toInstant().toString(); }

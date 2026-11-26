@@ -3,6 +3,7 @@ package com.zynckle.api.project;
 import com.zynckle.api.common.Activity;
 import com.zynckle.api.common.ApiException;
 import com.zynckle.api.common.Validate;
+import com.zynckle.api.realtime.RealtimeHub;
 import com.zynckle.api.security.CurrentUser;
 import com.zynckle.api.task.TaskViews;
 import org.springframework.http.ResponseEntity;
@@ -20,10 +21,14 @@ public class ProjectController {
     private static final String[] COLORS = {"color-amber", "color-sage", "color-sky", "color-rose", "color-violet"};
     private final JdbcTemplate jdbc;
     private final Activity activity;
+    private final RealtimeHub hub;
+    private final com.zynckle.api.task.TaskFeatures features;
 
-    public ProjectController(JdbcTemplate jdbc, Activity activity) {
+    public ProjectController(JdbcTemplate jdbc, Activity activity, RealtimeHub hub, com.zynckle.api.task.TaskFeatures features) {
         this.jdbc = jdbc;
         this.activity = activity;
+        this.hub = hub;
+        this.features = features;
     }
 
     private static final String SELECT = """
@@ -74,7 +79,9 @@ public class ProjectController {
         jdbc.update("INSERT INTO project (id, workspace_id, name, description, status, due_date, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)",
             id, me.workspaceId(), name, description, status, due.isBlank() ? "Not set" : due, me.userId());
         activity.log(me, "created project", "project", name, false, id);
-        return ResponseEntity.status(201).body(find(me, id));
+        Map<String, Object> created = find(me, id);
+        hub.publish(me.workspaceId(), "project.changed", created, null);
+        return ResponseEntity.status(201).body(created);
     }
 
     @GetMapping("/{id}")
@@ -95,6 +102,7 @@ public class ProjectController {
         }
         Map<String, Object> saved = find(me, id);
         activity.log(me, "updated project", "project", String.valueOf(saved.get("name")), false, id);
+        hub.publish(me.workspaceId(), "project.changed", saved, null);
         return saved;
     }
 
@@ -108,6 +116,7 @@ public class ProjectController {
         jdbc.update("DELETE FROM task WHERE project_id = ?", id);
         jdbc.update("DELETE FROM project WHERE id = ? AND workspace_id = ?", id, me.workspaceId());
         activity.log(me, "deleted project", "project", String.valueOf(project.get("name")), true, null);
+        hub.publish(me.workspaceId(), "project.deleted", Map.of("id", id), null);
         return Map.of("deleted", true);
     }
 
@@ -115,6 +124,29 @@ public class ProjectController {
     public List<Map<String, Object>> tasks(CurrentUser me, @PathVariable String id) {
         find(me, id);
         return TaskViews.list(jdbc, me, " AND t.project_id = ?", id);
+    }
+
+    /** Reviewed AI plans arrive here: up to 50 tasks in one request. */
+    @PostMapping("/{id}/tasks/bulk")
+    @Transactional
+    @SuppressWarnings("unchecked")
+    public ResponseEntity<List<Map<String, Object>>> createTasks(CurrentUser me, @PathVariable String id, @RequestBody Map<String, Object> body) {
+        me.requireEdit();
+        Map<String, Object> project = find(me, id);
+        if (!(body.get("tasks") instanceof List<?> list) || list.isEmpty() || list.size() > 50) throw new ApiException(400, "Provide between 1 and 50 tasks");
+        List<Map<String, Object>> inputs = list.stream().filter(Map.class::isInstance).map(o -> (Map<String, Object>) o).toList();
+        List<Map<String, Object>> created = features.createMany(me, id, inputs);
+        activity.log(me, "added " + created.size() + " tasks to", "project", String.valueOf(project.get("name")), false, id);
+        return ResponseEntity.status(201).body(created);
+    }
+
+    /** CSV import (Notion, Trello, Linear and Asana all export CSV). The body is the CSV text. */
+    @PostMapping(value = "/{id}/import", consumes = "*/*")
+    @Transactional
+    public Map<String, Object> importCsv(CurrentUser me, @PathVariable String id, @RequestBody(required = false) String csv) {
+        me.requireEdit();
+        find(me, id);
+        return features.importCsv(me, id, csv);
     }
 
     @PostMapping("/{id}/tasks")
@@ -129,11 +161,14 @@ public class ProjectController {
         String date = Objects.toString(Validate.optional(body, "date", "Due date", 64), "No date");
         String assignee = body.containsKey("assigneeId") ? TaskViews.assignee(jdbc, me, body.get("assigneeId")) : null;
         boolean done = "Done".equals(status) || Boolean.TRUE.equals(body.get("done"));
-        jdbc.update("INSERT INTO task (id, project_id, title, description, status, priority, due_date, done, assignee_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            taskId, id, title, description, done ? "Done" : status, priority, date.isBlank() ? "No date" : date, done, assignee, me.userId());
+        String recurrence = com.zynckle.api.task.TaskFeatures.recurrence(body.get("recurrence"));
+        jdbc.update("INSERT INTO task (id, project_id, title, description, status, priority, due_date, done, assignee_id, created_by, recurrence) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            taskId, id, title, description, done ? "Done" : status, priority, date.isBlank() ? "No date" : date, done, assignee, me.userId(), recurrence);
         jdbc.update("UPDATE project SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", id);
         activity.log(me, "created task", "task", title, false, id);
         if (assignee != null) activity.notify(me, List.of(assignee), "task", "Task assigned to you", title + " · " + project.get("name"), "/projects/" + id + "?task=" + taskId);
-        return ResponseEntity.status(201).body(TaskViews.find(jdbc, me, taskId));
+        Map<String, Object> created = TaskViews.find(jdbc, me, taskId);
+        hub.publish(me.workspaceId(), "task.changed", created, null);
+        return ResponseEntity.status(201).body(created);
     }
 }

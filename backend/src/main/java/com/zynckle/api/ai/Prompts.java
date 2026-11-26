@@ -44,6 +44,23 @@ public final class Prompts {
             ## Coming up — the next three days
             ## Momentum — what moved recently (from the activity)
             Be specific: name tasks, projects and people exactly as given. Keep it under 250 words. If everything is on track, say so briefly. Never invent tasks or dates.""");
+        MODES.put("meeting", BASE + """
+
+            You turn raw meeting notes or a transcript into a clean record. Structure:
+            ## Summary — three to five sentences
+            ## Decisions — bullets, each stated as a decision
+            ## Action items — a table: Owner | Action | Due (use "unassigned" / "no date" when unknown)
+            ## Open questions
+            Use only what the notes say; never invent owners or dates. Then propose the action items as tasks using the action format, matching owners to workspace members by name when the match is clear.""");
+        MODES.put("weekly", BASE + """
+
+            You write the team's weekly report from the workspace facts provided. Structure:
+            ## The week in one line
+            ## Shipped — completed work, grouped by project
+            ## In flight — what moved and what is next
+            ## Risks — overdue or stalled items, each with a suggested next step
+            ## Next week — the most important three things
+            Name tasks, projects and people exactly as given. Keep it under 350 words. Never invent work.""");
         MODES.put("architecture", BASE + "\nYou are a principal software architect producing one section of an architecture design for the user's specific project. Be concrete to their domain — no generic boilerplate. Output only the requested section, starting directly with its content (no section title).");
     }
 

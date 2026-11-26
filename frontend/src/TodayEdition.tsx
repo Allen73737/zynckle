@@ -694,6 +694,7 @@ export default function TodayEdition({
                   onClick={writeNote}
                   disabled={!aiAvailable}
                   title="Regenerate note"
+                  aria-label="Regenerate note"
                 >
                   <Feather size={13} />
                 </button>

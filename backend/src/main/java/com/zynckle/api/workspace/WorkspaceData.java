@@ -11,8 +11,10 @@ public final class WorkspaceData {
         jdbc.update("DELETE FROM task WHERE project_id IN (SELECT id FROM project WHERE workspace_id = ?)", workspaceId);
         jdbc.update("DELETE FROM ai_chat_message WHERE chat_id IN (SELECT id FROM ai_chat WHERE workspace_id = ?)", workspaceId);
         jdbc.update("DELETE FROM code_file_version WHERE code_file_id IN (SELECT id FROM code_file WHERE workspace_id = ?)", workspaceId);
+        jdbc.update("DELETE FROM doc_version WHERE document_id IN (SELECT id FROM document WHERE workspace_id = ?)", workspaceId);
+        jdbc.update("DELETE FROM doc_comment WHERE document_id IN (SELECT id FROM document WHERE workspace_id = ?)", workspaceId);
         // Stored bytes for these rows are left as orphans under data/uploads/<kind>/<workspaceId>/ and can be removed with that folder.
-        for (String table : new String[] {"code_file", "code_project", "drive_file", "drive_folder", "project", "document", "website_preview", "activity_log", "invitation", "notification", "ai_chat", "workspace_member"}) {
+        for (String table : new String[] {"code_file", "code_project", "drive_file", "drive_folder", "doc_folder", "project", "document", "website_preview", "activity_log", "invitation", "notification", "ai_chat", "workspace_member"}) {
             jdbc.update("DELETE FROM " + table + " WHERE workspace_id = ?", workspaceId);
         }
         jdbc.update("UPDATE app_user SET active_workspace_id = NULL WHERE active_workspace_id = ?", workspaceId);

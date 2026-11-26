@@ -19,7 +19,8 @@ public class AuthFilter extends OncePerRequestFilter {
     public static final String ATTRIBUTE = "zynckle.currentUser";
     private static final Set<String> PUBLIC = Set.of(
         "/api/health", "/api/auth/register", "/api/auth/login", "/api/auth/logout", "/api/auth/forgot",
-        "/api/auth/reset", "/api/auth/verify", "/api/auth/providers", "/api/ai/status", "/api/latex/status");
+        "/api/auth/reset", "/api/auth/verify", "/api/auth/providers", "/api/ai/status", "/api/latex/status",
+        "/api/auth/google/start", "/api/auth/google/callback");
 
     private final AuthService auth;
 
@@ -33,8 +34,8 @@ public class AuthFilter extends OncePerRequestFilter {
         String token = header.regionMatches(true, 0, "Bearer ", 0, 7) ? header.substring(7).trim() : "";
         Optional<CurrentUser> user = auth.resolve(token);
         if (user.isPresent()) request.setAttribute(ATTRIBUTE, user.get());
-        // Signed file links carry their own HMAC check, so <img>/<video> can load them without a token.
-        else if (!PUBLIC.contains(path) && !path.matches("/api/files/[^/]+/content")) {
+        // These authenticate themselves: signed file links (HMAC), public share tokens and signed GitHub webhooks.
+        else if (!PUBLIC.contains(path) && !path.matches("/api/files/[^/]+/content|/api/public/share/[^/]+|/api/integrations/github/[^/]+/webhook")) {
             response.setStatus(401);
             response.setContentType("application/json");
             response.getOutputStream().write("{\"error\":\"Sign in required\"}".getBytes(StandardCharsets.UTF_8));

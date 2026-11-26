@@ -41,6 +41,7 @@ public final class TaskViews {
         out.put("due", t.get("due_date"));
         out.put("done", Boolean.TRUE.equals(t.get("done")) || "Done".equals(t.get("status")));
         out.put("assigneeId", t.get("assignee_id"));
+        out.put("recurrence", t.get("recurrence"));
         String name = (String) t.get("assignee_name");
         out.put("assignee", name == null ? null : Map.of("id", t.get("assignee_id"), "name", name, "email", Objects.toString(t.get("assignee_email"), ""), "avatar", CurrentUser.initials(name)));
         out.put("createdAt", t.get("created_at") instanceof Timestamp ts ? ts.toInstant().toString() : null);
