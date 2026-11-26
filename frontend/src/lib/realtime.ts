@@ -32,7 +32,8 @@ export function useRealtime(token: string) {
     const connect = () => {
       setStatus('connecting');
       const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-      const ws = new WebSocket(`${protocol}://${location.host}/ws?token=${encodeURIComponent(token)}`);
+      // The HttpOnly session cookie authenticates the socket; no token in the URL.
+      const ws = new WebSocket(`${protocol}://${location.host}/ws`);
       socket = ws;
       ws.onopen = () => { attempt.current = 0; setStatus('live'); ws.send(JSON.stringify({ type: 'presence', location: lastLocation })); };
       ws.onmessage = event => {

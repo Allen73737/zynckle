@@ -66,7 +66,7 @@ export default function RichTextEditor({ value, onChange, collab, onPeers, onFal
     if (!collab) { setSession(null); return; }
     const ydoc = new Y.Doc();
     const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-    const provider = new WebsocketProvider(`${protocol}://${location.host}/collab`, collab.docId, ydoc, { params: { token: collab.token }, maxBackoffTime: 8000 });
+    const provider = new WebsocketProvider(`${protocol}://${location.host}/collab`, collab.docId, ydoc, { params: collab.token ? { token: collab.token } : {}, maxBackoffTime: 8000 });
     setSession({ ydoc, provider });
     return () => { provider.destroy(); ydoc.destroy(); };
   }, [collab?.docId, collab?.token]); // eslint-disable-line react-hooks/exhaustive-deps

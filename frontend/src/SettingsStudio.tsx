@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Bell, Bot, HardDrive, Info, KeyRound, Laptop, Monitor, Moon, Palette, Plug, Save, Shield, Sun, Trash2, User, Users, MailCheck, ScrollText, ArrowRight } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { api, errorMessage, formatBytes, timeAgo } from './lib/api';
+import { desktopEnabled, desktopSupported, setDesktopNotifications } from './lib/desktopNotify';
 import { ActivityFeed, type ActivityItem } from './ProjectViews';
 import { PLATFORM_TOPICS } from './AboutStudio';
 
@@ -88,7 +89,7 @@ export default function SettingsStudio({ account, workspace, workspaceId, worksp
         {section === 'appearance' && <section className="settings-card"><div className="eyebrow">APPEARANCE</div><h2>Quiet by design</h2><p>Choose a bright or low-light workspace, or follow your operating system. Your choice is saved immediately.</p>
           <div className="zy-theme-choices">{([['light', 'Light Mode', Sun, 'Crisp monochrome white & black'], ['dark', 'Dark Mode', Moon, 'Pitch black & stark white'], ['system', 'System Sync', Monitor, 'Follows OS preference']] as const).map(([value, label, Icon, sub]) => <button key={value} type="button" className={theme === value ? 'active' : ''} onClick={() => onThemeChoice(value)} aria-pressed={theme === value}><span className={`zy-theme-swatch ${value}`}><i/><b/></span><div className="theme-meta"><span className="theme-label"><Icon size={16}/>{label}</span><small className="theme-sub">{sub}</small></div>{theme === value && <span className="theme-active-tag">Active</span>}</button>)}</div></section>}
 
-        {section === 'notifications' && <section className="settings-card"><div className="eyebrow">NOTIFICATIONS</div><h2>What deserves your attention</h2><p>Notifications arrive instantly in the notification centre. Turned-off kinds are not created for you.</p><div className="zy-toggle-list">{Object.entries(NOTIFY_LABELS).map(([key, label]) => <label key={key} className="zy-toggle"><span>{label}</span><input type="checkbox" role="switch" checked={prefs[key] !== false} onChange={e => togglePref(key, e.target.checked)}/><i aria-hidden="true"/></label>)}</div></section>}
+        {section === 'notifications' && <section className="settings-card"><div className="eyebrow">NOTIFICATIONS</div><h2>What deserves your attention</h2><p>Notifications arrive instantly in the notification centre. Turned-off kinds are not created for you.</p><div className="zy-toggle-list">{Object.entries(NOTIFY_LABELS).map(([key, label]) => <label key={key} className="zy-toggle"><span>{label}</span><input type="checkbox" role="switch" checked={prefs[key] !== false} onChange={e => togglePref(key, e.target.checked)}/><i aria-hidden="true"/></label>)}</div><DesktopNotificationsToggle/></section>}
 
         {section === 'ai' && <section className="settings-card"><div className="eyebrow">AI PROVIDERS</div><h2>Zynckle AI</h2><p>Provider keys live only in the backend environment and are never sent to the browser. Pick your preferred provider and model among those configured.</p>
           <div className="zy-provider-list">{safeProviders.map(p => <div key={p.id} className="zy-provider"><span className={`zy-dot ${p.configured ? 'on' : ''}`}/><span><strong>{p.label}</strong><small>{p.configured ? `Configured · default model ${p.defaultModel}` : `Not configured · set ${p.id.toUpperCase()}_API_KEY`}</small></span></div>)}</div>
@@ -112,13 +113,13 @@ export default function SettingsStudio({ account, workspace, workspaceId, worksp
             <div className="about-telemetry-grid" style={{ margin: '14px 0 22px 0' }}>
               <div className="telemetry-card">
                 <span className="telemetry-label">SYSTEM BUILD</span>
-                <span className="telemetry-value">v2.4.0 Production</span>
+                <span className="telemetry-value">v0.1.0</span>
                 <span className="telemetry-status ok">● Server-backed workspace</span>
               </div>
               <div className="telemetry-card">
-                <span className="telemetry-label">TEX VECTOR ENGINE</span>
-                <span className="telemetry-value">&lt; 5ms Fast TeX</span>
-                <span className="telemetry-status ok">● Pure-JS Zero-Freeze</span>
+                <span className="telemetry-label">LATEX</span>
+                <span className="telemetry-value">TeX or preview</span>
+                <span className="telemetry-status ok">● Compiled on the server</span>
               </div>
               <div className="telemetry-card">
                 <span className="telemetry-label">REALTIME COLLAB</span>
@@ -167,4 +168,14 @@ export default function SettingsStudio({ account, workspace, workspaceId, worksp
           <form onSubmit={deleteAccount}>{account.hasPassword !== false && <label>Current password<input type="password" value={deletePassword} onChange={e => setDeletePassword(e.target.value)} required autoComplete="current-password"/></label>}<label>Type DELETE to confirm<input value={deleteConfirm} onChange={e => setDeleteConfirm(e.target.value)} required/></label><button className="button-secondary danger" disabled={deleteConfirm !== 'DELETE' || busy}><Trash2 size={14}/> Permanently delete account</button></form></section>}
       </div>
     </div></>;
+}
+
+/** Opt-in desktop notifications in this browser (asks the browser for permission on first use). */
+function DesktopNotificationsToggle() {
+  const [state, setState] = useState(() => !desktopSupported() ? 'unsupported' : desktopEnabled() ? 'on' : (typeof Notification !== 'undefined' && Notification.permission === 'denied') ? 'denied' : 'off');
+  const change = async (on: boolean) => setState(await setDesktopNotifications(on));
+  return <div className="zy-desktop-notify">
+    <label className="zy-toggle"><span>Desktop notifications in this browser<small>{state === 'unsupported' ? 'This browser does not support notifications.' : state === 'denied' ? 'Blocked in the browser’s site settings. Allow notifications for this site, then try again.' : 'Shown when something needs you while Zynckle is open in another tab.'}</small></span>
+      <input type="checkbox" role="switch" checked={state === 'on'} disabled={state === 'unsupported'} onChange={e => change(e.target.checked)}/><i aria-hidden="true"/></label>
+  </div>;
 }

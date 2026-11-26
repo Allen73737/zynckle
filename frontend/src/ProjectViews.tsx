@@ -6,6 +6,26 @@ import { useRealtimeEvent } from './lib/realtime';
 
 const ImportDialog = lazy(() => import('./ImportDialog'));
 
+export type SavedView = { id: string; name: string; projectId: string | null; layout: 'board' | 'list' | 'timeline' | 'calendar'; filter: string; priority: string; assignee: string };
+
+/** Saved task views live in the user's preferences on the server, so they follow you between devices. */
+let viewsCache: Promise<SavedView[]> | null = null;
+function useSavedViews() {
+  const [views, setViews] = useState<SavedView[]>([]);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    viewsCache ??= api<{ preferences?: { savedViews?: SavedView[] } }>('/api/auth/me').then(me => me.preferences?.savedViews || []).catch(() => []);
+    viewsCache.then(setViews);
+  }, []);
+  const save = async (next: SavedView[]) => {
+    const before = views;
+    setViews(next); setError('');
+    try { const prefs = await api<{ savedViews?: SavedView[] }>('/api/auth/preferences', { method: 'PATCH', body: { savedViews: next } }); setViews(prefs.savedViews || next); viewsCache = Promise.resolve(prefs.savedViews || next); }
+    catch (e) { setViews(before); setError(errorMessage(e, 'The view could not be saved')); }
+  };
+  return { views, save, error };
+}
+
 export type Project = { id: string | number; name: string; description: string; color: string; progress: number; due: string; members: number; status: string; tags?: string[]; memberIds?: string[]; memberList?: Member[]; archived?: boolean; ownerId?: string; taskCount?: number; doneCount?: number };
 export type Task = { id: string | number; title: string; project: string; date: string; priority: string; done: boolean; status?: string; due?: string; projectId?: string; description?: string; assigneeId?: string | null; assignee?: Member | null; commentCount?: number; position?: number; createdAt?: string };
 export type ActivityItem = { id: string; verb: string; summary: string; entityType: string; createdAt: string; actor: Member; projectId?: string | null };
@@ -57,6 +77,8 @@ export function ProjectDetail({ projects, tasks, onEdit, onTask, onMove, onOpenT
   const [membersOpen, setMembersOpen] = useState(false);
   const [importing, setImporting] = useState(false);
   const [announce, setAnnounce] = useState('');
+  const { views: savedViews, save: saveViews, error: viewError } = useSavedViews();
+  const [activeView, setActiveView] = useState('');
   const project = projects.find(p => String(p.id) === id);
   useEffect(() => { localStorage.setItem('zynckle-project-view', view === 'activity' ? 'board' : view); }, [view]);
   useEffect(() => { if (view === 'activity' && project) api<ActivityItem[]>(`/api/activity?projectId=${project.id}&limit=60`).then(setActivity).catch(() => setActivity([])); }, [view, project?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -100,11 +122,29 @@ export function ProjectDetail({ projects, tasks, onEdit, onTask, onMove, onOpenT
         {membersOpen && <div className="zy-dropdown" onMouseLeave={() => setMembersOpen(false)}>{members.map(m => <label key={m.id} className="zy-check"><input type="checkbox" checked={(project.memberIds || []).includes(m.id)} onChange={e => patch({ memberIds: e.target.checked ? [...(project.memberIds || []), m.id] : (project.memberIds || []).filter(x => x !== m.id) }, 'Members could not be updated')}/>{m.name}</label>)}</div>}</div>
       <div><span>Tasks</span><strong>{items.length} tasks{overdue ? <em className="zy-overdue"> · {overdue} overdue</em> : ''}</strong></div></div>
     <div className="kanban-head"><div><div className="eyebrow">THE WORK</div><h2>Tasks & milestones</h2></div>
-      <div className="zy-head-actions"><div className="zy-segmented small" role="tablist"><button className={view === 'board' ? 'active' : ''} onClick={() => setView('board')}><LayoutGrid size={12}/> Board</button><button className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}><List size={12}/> List</button><button className={view === 'timeline' ? 'active' : ''} onClick={() => setView('timeline')}><GanttChart size={12}/> Timeline</button><button className={view === 'calendar' ? 'active' : ''} onClick={() => setView('calendar')}><CalendarDays size={12}/> Calendar</button><button className={view === 'activity' ? 'active' : ''} onClick={() => setView('activity')}><ActivityIcon size={12}/> Activity</button></div>{canEdit && <button className="button-secondary" onClick={() => setImporting(true)} title="Import tasks from a CSV export (Notion, Trello, Linear, Asana)"><Upload size={15}/> Import</button>}{canEdit && <button className="button-secondary" onClick={() => onTask(project.name)}><Plus size={15}/> Add task</button>}</div></div>
-    {view !== 'activity' && <div className="zy-board-filters"><label className="zy-search-field"><Search size={13}/><input value={filter} onChange={e => setFilter(e.target.value)} placeholder="Filter tasks" aria-label="Filter tasks"/></label>
+      <div className="zy-head-actions"><div className="zy-segmented small" role="tablist" aria-label="Project view">{([['board', LayoutGrid, 'Board'], ['list', List, 'List'], ['timeline', GanttChart, 'Timeline'], ['calendar', CalendarDays, 'Calendar'], ['activity', ActivityIcon, 'Activity']] as const).map(([id, Icon, label]) => <button key={id} role="tab" aria-selected={view === id} className={view === id ? 'active' : ''} onClick={() => setView(id)}><Icon size={12}/> {label}</button>)}</div>{canEdit && <button className="button-secondary" onClick={() => setImporting(true)} title="Import tasks from a CSV export (Notion, Trello, Linear, Asana)"><Upload size={15}/> Import</button>}{canEdit && <button className="button-secondary" onClick={() => onTask(project.name)}><Plus size={15}/> Add task</button>}</div></div>
+    {view !== 'activity' && <div className="zy-board-filters">
+      <select className="zy-view-select" value={activeView} aria-label="Saved views" onChange={e => {
+        const value = e.target.value;
+        if (value === '__save') {
+          const name = window.prompt('Name this view', filter || (priority !== 'Any' ? `${priority} priority` : assignee === 'Me' ? 'My tasks' : `${view[0].toUpperCase()}${view.slice(1)} view`))?.trim();
+          if (name) { const id = `v${Date.now().toString(36)}`; saveViews([...savedViews, { id, name: name.slice(0, 40), projectId: String(project.id), layout: view as SavedView['layout'], filter, priority, assignee }]); setActiveView(id); }
+          return;
+        }
+        if (value === '__delete') { const current = savedViews.find(v => v.id === activeView); if (current && window.confirm(`Delete the view “${current.name}”?`)) { saveViews(savedViews.filter(v => v.id !== activeView)); setActiveView(''); } return; }
+        setActiveView(value);
+        const v = savedViews.find(x => x.id === value);
+        if (v) { setView(v.layout); setFilter(v.filter); setPriority(v.priority); setAssignee(v.assignee); }
+      }}>
+        <option value="">Views…</option>
+        {savedViews.filter(v => !v.projectId || v.projectId === String(project.id)).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+        <option value="__save">+ Save current view</option>
+        {activeView && <option value="__delete">Delete this view</option>}
+      </select>
+      <label className="zy-search-field"><Search size={13}/><input value={filter} onChange={e => setFilter(e.target.value)} placeholder="Filter tasks" aria-label="Filter tasks"/></label>
       <select value={priority} onChange={e => setPriority(e.target.value)} aria-label="Priority filter"><option>Any</option><option>Urgent</option><option>High</option><option>Normal</option><option>Low</option></select>
       <select value={assignee} onChange={e => setAssignee(e.target.value)} aria-label="Assignee filter"><option>Anyone</option><option value="Me">Assigned to me</option><option>Unassigned</option>{members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select>
-      {(filter || priority !== 'Any' || assignee !== 'Anyone') && <button className="text-button" onClick={() => { setFilter(''); setPriority('Any'); setAssignee('Anyone'); }}><X size={12}/> Clear</button>}<span className="zy-muted-note">{visible.length} of {items.length}</span></div>}
+      {(filter || priority !== 'Any' || assignee !== 'Anyone') && <button className="text-button" onClick={() => { setFilter(''); setPriority('Any'); setAssignee('Anyone'); setActiveView(''); }}><X size={12}/> Clear</button>}<span className="zy-muted-note">{visible.length} of {items.length}</span>{viewError && <span className="zy-inline-error" role="alert">{viewError}</span>}</div>}
     <p className="sr-only" aria-live="polite">{announce}</p>
     {view === 'board' && <div className="kanban-board">{COLUMNS.map(col => { const colItems = visible.filter(t => statusOf(t) === col).sort((a, b) => (a.position || 0) - (b.position || 0)); return <div className={`kanban-column ${over === col ? 'zy-drop' : ''}`} key={col} onDragOver={e => { if (!canEdit) return; e.preventDefault(); setOver(col); }} onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOver(null); }} onDrop={e => { const taskId = e.dataTransfer.getData('text/plain'); setOver(null); setDragging(null); if (taskId) onMove(taskId, col); }}>
       <div className="kanban-column-title"><span>{col}</span><span>{colItems.length}</span></div>{colItems.map(card)}{canEdit && col !== 'Done' && <button className="zy-add-card" onClick={() => onTask(project.name)}><Plus size={11}/> Add</button>}</div>; })}</div>}
@@ -157,8 +197,8 @@ export function TaskCalendar({ tasks, onOpen, canEdit, showProject = false }: { 
     </div>
     {error && <p className="zy-inline-error" role="alert">{error}</p>}
     <div className="zy-cal-scroll"><div className="zy-cal-grid" role="grid" aria-label={`Tasks in ${label}`}>
-      {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => <div key={d} className="zy-cal-dow" role="columnheader">{d}</div>)}
-      {days.map(day => {
+      <div role="row" className="zy-cal-row">{['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => <div key={d} className="zy-cal-dow" role="columnheader">{d}</div>)}</div>
+      {Array.from({ length: days.length / 7 }, (_, w) => <div role="row" className="zy-cal-row" key={w}>{days.slice(w * 7, w * 7 + 7).map(day => {
         const list = byDay.get(day) || [];
         return <div key={day} role="gridcell" aria-label={`${new Date(`${day}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}, ${list.length} task${list.length === 1 ? '' : 's'}`}
           className={`zy-cal-day ${day.startsWith(month) ? '' : 'outside'} ${day === today ? 'today' : ''} ${over === day ? 'zy-drop' : ''}`}
@@ -170,7 +210,7 @@ export function TaskCalendar({ tasks, onOpen, canEdit, showProject = false }: { 
             <span>{t.title}</span></button>)}
           {list.length > 4 && <button className="zy-cal-more" onClick={() => onOpen(list[4])}>+{list.length - 4} more</button>}
         </div>;
-      })}
+      })}</div>)}
     </div></div>
     {undated.length > 0 && <div className="zy-tl-undated"><div className="eyebrow">UNSCHEDULED · {undated.length}{canEdit ? ' · drag onto a day' : ''}</div>{undated.map(t => <button key={t.id} draggable={canEdit} onDragStart={drag(t)} onClick={() => onOpen(t)}>{t.title}<small>{statusOf(t)}</small></button>)}</div>}
   </div>;
@@ -224,7 +264,7 @@ export function Tasks({ tasks, search, onToggle, onDelete, onOpen, onNew, accoun
     <div className="section-heading"><div><div className="eyebrow">{open} OPEN · {visible.length - open} COMPLETE</div><h2>{scope === 'mine' ? 'Assigned to me' : 'Today & coming up'}</h2></div>
       <div className="zy-filter-row"><div className="zy-segmented small"><button className={scope === 'all' ? 'active' : ''} onClick={() => setScope('all')}>Everyone</button><button className={scope === 'mine' ? 'active' : ''} onClick={() => setScope('mine')}>Mine</button></div>
         <div className="zy-segmented small"><button className={state === 'open' ? 'active' : ''} onClick={() => setState('open')}>Open</button><button className={state === 'done' ? 'active' : ''} onClick={() => setState('done')}>Done</button><button className={state === 'all' ? 'active' : ''} onClick={() => setState('all')}>All</button></div>
-        <div className="zy-segmented small" role="tablist" aria-label="Layout"><button className={layout === 'list' ? 'active' : ''} onClick={() => setLayout('list')}><List size={12}/> List</button><button className={layout === 'calendar' ? 'active' : ''} onClick={() => setLayout('calendar')}><CalendarDays size={12}/> Calendar</button></div>
+        <div className="zy-segmented small" role="tablist" aria-label="Layout"><button role="tab" aria-selected={layout === 'list'} className={layout === 'list' ? 'active' : ''} onClick={() => setLayout('list')}><List size={12}/> List</button><button role="tab" aria-selected={layout === 'calendar'} className={layout === 'calendar' ? 'active' : ''} onClick={() => setLayout('calendar')}><CalendarDays size={12}/> Calendar</button></div>
         <select className="zy-select-sm" value={sort} onChange={e => setSort(e.target.value as 'due')} aria-label="Sort tasks"><option value="due">By due date</option><option value="priority">By priority</option><option value="recent">Recently added</option></select></div></div>
     {layout === 'calendar' && visible.length > 0 && <TaskCalendar tasks={visible} onOpen={onOpen} canEdit={canEdit} showProject/>}
     <div className="task-page-list" hidden={layout === 'calendar' && visible.length > 0}>{visible.map(t => <div key={t.id} className={`task-page-row ${t.done ? 'task-done' : ''}`}><button className="task-check" onClick={() => onToggle(t.id)} aria-label={t.done ? 'Reopen task' : 'Complete task'} disabled={!canEdit}>{t.done && <Check size={12}/>}</button><span onClick={() => onOpen(t)}><strong>{t.title}</strong><small>{t.project} · {statusOf(t)}{t.assignee ? ` · ${t.assignee.name}` : ''}</small></span><span className={`priority priority-${t.priority.toLowerCase()}`} title={`${t.priority} priority`}/><time className={isOverdue(t) ? 'zy-overdue' : ''}>{shortDate(t.date)}</time><button className="text-button" onClick={() => onOpen(t)}><MessageSquare size={12}/>{t.commentCount ? ` ${t.commentCount}` : ''}</button>{canEdit && <button className="icon-button danger" onClick={() => onDelete(t.id)} aria-label={`Delete ${t.title}`} title="Delete task"><Trash2 size={14}/></button>}</div>)}

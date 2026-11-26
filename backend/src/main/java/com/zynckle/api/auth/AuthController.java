@@ -11,8 +11,11 @@ import com.zynckle.api.ai.AiSettings;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.zynckle.api.security.AuthService;
 import com.zynckle.api.security.CurrentUser;
+import com.zynckle.api.security.AuthFilter;
+import com.zynckle.api.security.SessionCookies;
 import com.zynckle.api.workspace.WorkspaceData;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -44,9 +47,11 @@ public class AuthController {
     private final ObjectMapper json;
     private final Mailer mailer;
     private final AiSettings settings;
+    private final SessionCookies cookies;
     private final java.net.http.HttpClient http = java.net.http.HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
 
-    public AuthController(JdbcTemplate jdbc, AuthService auth, RateLimiter limiter, Activity activity, ObjectMapper json, Mailer mailer, AiSettings settings) {
+    public AuthController(JdbcTemplate jdbc, AuthService auth, RateLimiter limiter, Activity activity, ObjectMapper json, Mailer mailer, AiSettings settings, SessionCookies cookies) {
+        this.cookies = cookies;
         this.mailer = mailer;
         this.settings = settings;
         this.jdbc = jdbc;
@@ -56,7 +61,8 @@ public class AuthController {
         this.json = json;
     }
 
-    private void authLimit(HttpServletRequest request) { limiter.check("auth:" + request.getRemoteAddr(), 12, 60_000); }
+    /** Sign-up, sign-in and reset attempts per IP per minute (AUTH_RATE_PER_MINUTE, default 12). */
+    private void authLimit(HttpServletRequest request) { limiter.check("auth:" + request.getRemoteAddr(), Math.max(1, settings.getInt("AUTH_RATE_PER_MINUTE", 12)), 60_000); }
 
     private Map<String, Object> user(String userId) {
         List<Map<String, Object>> rows = jdbc.queryForList("SELECT * FROM app_user WHERE id = ?", userId);
@@ -116,7 +122,7 @@ public class AuthController {
 
     @PostMapping("/register")
     @Transactional
-    public ResponseEntity<Map<String, Object>> register(@RequestBody Map<String, Object> body, HttpServletRequest request) {
+    public ResponseEntity<Map<String, Object>> register(@RequestBody Map<String, Object> body, HttpServletRequest request, HttpServletResponse response) {
         authLimit(request);
         String name = Validate.str(body, "name", "Name", 1, 100);
         String email = Validate.email(body, "email");
@@ -149,8 +155,9 @@ public class AuthController {
         }
         String verifyUrl = startVerification(userId, email);
         String token = auth.createSession(userId, request);
+        cookies.issue(response, token);
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("token", token);
+        out.put("token", token); // for API clients; browsers use the HttpOnly cookie
         out.put("user", Map.of("id", userId, "name", name, "email", email, "avatar", CurrentUser.initials(name)));
         out.put("workspace", Map.of("id", workspaceId, "name", workspaceName));
         out.put("verifyUrl", verifyUrl);
@@ -162,7 +169,7 @@ public class AuthController {
     private static String firstName(String name) { return name.trim().split("\\s+")[0]; }
 
     @PostMapping("/login")
-    public Map<String, Object> login(@RequestBody Map<String, Object> body, HttpServletRequest request) {
+    public Map<String, Object> login(@RequestBody Map<String, Object> body, HttpServletRequest request, HttpServletResponse response) {
         authLimit(request);
         String email = String.valueOf(body.getOrDefault("email", "")).trim().toLowerCase();
         limiter.check("login:" + email, 8, 300_000);
@@ -170,12 +177,26 @@ public class AuthController {
         String password = String.valueOf(body.getOrDefault("password", ""));
         if (rows.isEmpty() || !auth.verifyPassword((String) rows.get(0).get("password_hash"), password)) throw new ApiException(401, "Email or password is incorrect");
         Map<String, Object> u = rows.get(0);
-        return Map.of("token", auth.createSession((String) u.get("id"), request), "user", publicUser(u));
+        String token = auth.createSession((String) u.get("id"), request);
+        cookies.issue(response, token);
+        return Map.of("token", token, "user", publicUser(u));
     }
 
     @PostMapping("/logout")
-    public Map<String, Object> logout(@RequestHeader(value = "Authorization", required = false) String header) {
-        if (header != null && header.regionMatches(true, 0, "Bearer ", 0, 7)) auth.revokeToken(header.substring(7).trim());
+    public Map<String, Object> logout(HttpServletRequest request, HttpServletResponse response) {
+        // The filter recorded the token whether it came from the cookie or a bearer header.
+        if (request.getAttribute(AuthFilter.TOKEN_ATTRIBUTE) instanceof String token) auth.revokeToken(token);
+        cookies.clear(response);
+        return Map.of("ok", true);
+    }
+
+    /**
+     * One-time upgrade for browsers that still keep a session token in localStorage (older builds):
+     * called with that token as a bearer header, it moves the same session into the HttpOnly cookie.
+     */
+    @PostMapping("/cookie")
+    public Map<String, Object> adoptCookie(CurrentUser me, HttpServletRequest request, HttpServletResponse response) {
+        if (request.getAttribute(AuthFilter.TOKEN_ATTRIBUTE) instanceof String token) cookies.issue(response, token);
         return Map.of("ok", true);
     }
 
@@ -200,13 +221,15 @@ public class AuthController {
     }
 
     @PostMapping("/reset")
-    public Map<String, Object> reset(@RequestBody Map<String, Object> body, HttpServletRequest request) {
+    public Map<String, Object> reset(@RequestBody Map<String, Object> body, HttpServletRequest request, HttpServletResponse response) {
         authLimit(request);
         String userId = auth.consumeToken("reset", body.get("token")).orElseThrow(() -> new ApiException(400, "This reset link is invalid or has expired. Request a new one."));
         Validate.password(body.get("password"));
         jdbc.update("UPDATE app_user SET password_hash = ?, email_verified = TRUE WHERE id = ?", auth.hashPassword((String) body.get("password")), userId);
         auth.revokeAll(userId);
-        return Map.of("token", auth.createSession(userId, request));
+        String token = auth.createSession(userId, request);
+        cookies.issue(response, token);
+        return Map.of("token", token);
     }
 
     @PostMapping("/verify")
@@ -238,7 +261,7 @@ public class AuthController {
     private static String enc(String value) { return java.net.URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8); }
 
     @GetMapping("/google/callback")
-    public ResponseEntity<Void> googleCallback(@RequestParam(required = false) String code, @RequestParam(required = false) String state, HttpServletRequest request) {
+    public ResponseEntity<Void> googleCallback(@RequestParam(required = false) String code, @RequestParam(required = false) String state, HttpServletRequest request, HttpServletResponse response) {
         java.util.function.Function<String, ResponseEntity<Void>> back = message -> ResponseEntity.status(302)
             .header("Location", auth.publicUrl() + "/signin?error=" + enc(message)).header("Cache-Control", "no-store").build();
         if (!googleConfigured()) return back.apply("Google sign-in is not configured");
@@ -271,8 +294,9 @@ public class AuthController {
                 auth.createWorkspace(userId, firstName(name) + "'s studio");
             } else userId = (String) found.get(0).get("id");
             jdbc.update("UPDATE app_user SET google_subject = ?, email_verified = TRUE WHERE id = ?", subject, userId);
-            String session = auth.createSession(userId, request);
-            return ResponseEntity.status(302).header("Location", auth.publicUrl() + "/signin#token=" + session).header("Cache-Control", "no-store").build();
+            // The session goes in the HttpOnly cookie, never in the URL (history, logs, Referer).
+            cookies.issue(response, auth.createSession(userId, request));
+            return ResponseEntity.status(302).header("Location", auth.publicUrl() + "/signin#signed-in").header("Cache-Control", "no-store").build();
         } catch (Exception e) {
             log.warn("Google sign-in failed: {}", e.getMessage());
             return back.apply("Google sign-in failed. Please try again.");
@@ -327,6 +351,36 @@ public class AuthController {
         return Map.of("changed", true);
     }
 
+    private static final List<String> VIEW_LAYOUTS = List.of("board", "list", "timeline", "calendar");
+    private static final List<String> VIEW_PRIORITIES = List.of("Any", "Urgent", "High", "Normal", "Low");
+
+    /** Saved task views: at most 20, each a name plus filters. Unknown fields are dropped. */
+    private static List<Map<String, Object>> savedViews(Object value) {
+        if (!(value instanceof List<?> list)) throw new ApiException(400, "savedViews must be a list");
+        if (list.size() > 20) throw new ApiException(400, "You can save up to 20 views");
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Object item : list) {
+            if (!(item instanceof Map<?, ?> m)) continue;
+            String name = Objects.toString(m.get("name"), "").trim();
+            if (name.isEmpty() || name.length() > 40) throw new ApiException(400, "Each view needs a name of up to 40 characters");
+            Map<String, Object> v = new LinkedHashMap<>();
+            String id = Objects.toString(m.get("id"), "").replaceAll("[^\\w-]", "");
+            if (id.isEmpty()) id = UUID.randomUUID().toString();
+            v.put("id", id.length() > 40 ? id.substring(0, 40) : id);
+            v.put("name", name);
+            String projectId = m.get("projectId") == null ? "" : Objects.toString(m.get("projectId")).replaceAll("[^\\w-]", "");
+            v.put("projectId", projectId.isEmpty() ? null : projectId.substring(0, Math.min(64, projectId.length())));
+            v.put("layout", VIEW_LAYOUTS.contains(String.valueOf(m.get("layout"))) ? m.get("layout") : "board");
+            String filter = Objects.toString(m.get("filter"), "");
+            v.put("filter", filter.length() > 80 ? filter.substring(0, 80) : filter);
+            v.put("priority", VIEW_PRIORITIES.contains(String.valueOf(m.get("priority"))) ? m.get("priority") : "Any");
+            String assignee = Objects.toString(m.get("assignee"), "Anyone");
+            v.put("assignee", assignee.matches("[\\w-]{1,64}") ? assignee : "Anyone");
+            out.add(v);
+        }
+        return out;
+    }
+
     @PatchMapping("/preferences")
     public Map<String, Object> preferences(CurrentUser me, @RequestBody Map<String, Object> body) {
         Map<String, Object> prefs = readJson(user(me.userId()).get("preferences"));
@@ -335,6 +389,7 @@ public class AuthController {
         if (body.containsKey("aiModel")) prefs.put("aiModel", String.valueOf(body.get("aiModel")).matches("[\\w.:/-]{0,100}") ? body.get("aiModel") : "");
         if (body.containsKey("aiWorkspaceContext")) prefs.put("aiWorkspaceContext", Boolean.TRUE.equals(body.get("aiWorkspaceContext")));
         if (body.containsKey("reducedMotion")) prefs.put("reducedMotion", Boolean.TRUE.equals(body.get("reducedMotion")));
+        if (body.containsKey("savedViews")) prefs.put("savedViews", savedViews(body.get("savedViews")));
         jdbc.update("UPDATE app_user SET preferences = ? WHERE id = ?", writeJson(prefs), me.userId());
         return prefs;
     }

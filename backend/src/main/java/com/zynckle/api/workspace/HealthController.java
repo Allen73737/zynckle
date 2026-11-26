@@ -1,6 +1,7 @@
 package com.zynckle.api.workspace;
 
 import com.zynckle.api.ai.AiClient;
+import com.zynckle.api.common.ErrorReporter;
 import com.zynckle.api.realtime.RealtimeHub;
 import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -17,8 +18,10 @@ public class HealthController {
     private final AiClient ai;
     private final RealtimeHub hub;
     private final Environment env;
+    private final ErrorReporter errors;
 
-    public HealthController(JdbcTemplate jdbc, AiClient ai, RealtimeHub hub, Environment env) {
+    public HealthController(JdbcTemplate jdbc, AiClient ai, RealtimeHub hub, Environment env, ErrorReporter errors) {
+        this.errors = errors;
         this.jdbc = jdbc;
         this.ai = ai;
         this.hub = hub;
@@ -41,6 +44,8 @@ public class HealthController {
         out.put("ai", Boolean.TRUE.equals(ai.status().get("available")));
         out.put("realtime", true);
         out.put("connections", hub.connections());
+        out.put("errorsLastHour", errors.lastHour());
+        out.put("alerts", errors.alertsConfigured());
         return out;
     }
 }

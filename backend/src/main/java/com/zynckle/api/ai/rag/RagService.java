@@ -2,7 +2,6 @@ package com.zynckle.api.ai.rag;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.zynckle.api.ai.AiClient;
 import com.zynckle.api.ai.AiException;
 import com.zynckle.api.ai.AiSettings;
@@ -95,7 +94,8 @@ public class RagService {
         @Override protected boolean removeEldestEntry(Map.Entry<String, float[]> eldest) { return size() > 300; }
     });
     private final ExecutorService embedder = Executors.newSingleThreadExecutor(r -> { Thread t = new Thread(r, "rag-embedder"); t.setDaemon(true); return t; });
-    private final Path vectorFile = Path.of("data", "rag-vectors.json");
+    /** Pre-database builds kept vectors here; it is imported into rag_vector once, then renamed. */
+    private final Path legacyVectorFile = Path.of("data", "rag-vectors.json");
     private volatile boolean vectorsLoaded;
     private volatile boolean embedRunning;
     private volatile String embedError;
@@ -296,41 +296,67 @@ public class RagService {
         return ai.embed(config.url(), config.key(), config.model(), inputs, timeout).stream().map(v -> normalise(v, config.dims())).toList();
     }
 
+    private static byte[] pack(float[] v) {
+        ByteBuffer buffer = ByteBuffer.allocate(v.length * 4).order(ByteOrder.LITTLE_ENDIAN);
+        buffer.asFloatBuffer().put(v);
+        return buffer.array();
+    }
+
+    private static float[] unpack(byte[] bytes) {
+        float[] v = new float[bytes.length / 4];
+        ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer().get(v);
+        return v;
+    }
+
+    /**
+     * Vectors live in the rag_vector table, keyed by chunk content hash and model, so they are part of
+     * every database backup and survive restarts and redeploys. Similarity search stays in memory over
+     * the permitted chunks: exact, and fast for workspace-sized corpora.
+     */
     private synchronized void loadVectors() {
         if (vectorsLoaded) return;
         vectorsLoaded = true;
         EmbeddingConfig config = embeddingConfig();
-        if (config == null || !Files.isRegularFile(vectorFile)) return;
+        if (config == null) return;
+        importLegacyFile(config);
         try {
-            JsonNode saved = json.readTree(vectorFile.toFile());
-            if (!config.model().equals(saved.path("model").asText())) return;
-            saved.path("vectors").fields().forEachRemaining(e -> {
-                byte[] bytes = Base64.getDecoder().decode(e.getValue().asText());
-                float[] v = new float[bytes.length / 4];
-                ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer().get(v);
-                vectors.put(e.getKey(), v);
-            });
-        } catch (IOException e) {
-            log.warn("Could not read the RAG vector cache: {}", e.getMessage());
+            jdbc.query("SELECT hash, embedding FROM rag_vector WHERE model = ?", rs -> {
+                byte[] bytes = rs.getBytes("embedding");
+                if (bytes != null && bytes.length >= 4) vectors.put(rs.getString("hash"), unpack(bytes));
+            }, config.model());
+        } catch (org.springframework.dao.DataAccessException e) {
+            log.warn("Could not read stored RAG vectors: {}", e.getMessage());
         }
     }
 
-    private void saveVectors(EmbeddingConfig config) {
-        ObjectNode root = json.createObjectNode();
-        root.put("model", config.model());
-        ObjectNode out = root.putObject("vectors");
-        for (Map.Entry<String, float[]> e : vectors.entrySet()) {
-            ByteBuffer buffer = ByteBuffer.allocate(e.getValue().length * 4).order(ByteOrder.LITTLE_ENDIAN);
-            buffer.asFloatBuffer().put(e.getValue());
-            out.put(e.getKey(), Base64.getEncoder().encodeToString(buffer.array()));
-        }
+    /** Store newly computed vectors (insert-only: a hash always maps to the same text). */
+    private void storeVectors(EmbeddingConfig config, Map<String, float[]> fresh) {
+        if (fresh.isEmpty()) return;
+        List<Object[]> rows = new ArrayList<>();
+        for (Map.Entry<String, float[]> e : fresh.entrySet()) rows.add(new Object[]{ e.getKey(), config.model(), e.getValue().length, pack(e.getValue()) });
         try {
-            Files.createDirectories(vectorFile.toAbsolutePath().getParent());
-            Path tmp = vectorFile.resolveSibling("rag-vectors.json." + System.currentTimeMillis() + ".tmp");
-            json.writeValue(tmp.toFile(), root);
-            Files.move(tmp, vectorFile, StandardCopyOption.REPLACE_EXISTING);
-        } catch (IOException e) {
-            log.warn("Could not save the RAG vector cache: {}", e.getMessage());
+            for (Object[] row : rows) {
+                jdbc.update("DELETE FROM rag_vector WHERE hash = ? AND model = ?", row[0], row[1]);
+            }
+            jdbc.batchUpdate("INSERT INTO rag_vector (hash, model, dims, embedding) VALUES (?, ?, ?, ?)", rows);
+        } catch (org.springframework.dao.DataAccessException e) {
+            log.warn("Could not save RAG vectors: {}", e.getMessage());
+        }
+    }
+
+    private void importLegacyFile(EmbeddingConfig config) {
+        if (!Files.isRegularFile(legacyVectorFile)) return;
+        try {
+            JsonNode saved = json.readTree(legacyVectorFile.toFile());
+            if (config.model().equals(saved.path("model").asText())) {
+                Map<String, float[]> imported = new LinkedHashMap<>();
+                saved.path("vectors").fields().forEachRemaining(e -> imported.put(e.getKey(), unpack(Base64.getDecoder().decode(e.getValue().asText()))));
+                storeVectors(config, imported);
+                log.info("Imported {} RAG vectors from {} into the database", imported.size(), legacyVectorFile);
+            }
+            Files.move(legacyVectorFile, legacyVectorFile.resolveSibling("rag-vectors.json.imported"), StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException | RuntimeException e) {
+            log.warn("Could not import the old RAG vector file: {}", e.getMessage());
         }
     }
 
@@ -353,10 +379,11 @@ public class RagService {
                         return text.length() > 6000 ? text.substring(0, 6000) : text;
                     }).toList();
                     List<float[]> result = embed(config, inputs, Duration.ofSeconds(30));
-                    for (int j = 0; j < batch.size(); j++) vectors.put(batch.get(j).hash, result.get(j));
+                    Map<String, float[]> fresh = new LinkedHashMap<>();
+                    for (int j = 0; j < batch.size(); j++) { vectors.put(batch.get(j).hash, result.get(j)); fresh.put(batch.get(j).hash, result.get(j)); }
+                    storeVectors(config, fresh); // per batch, so progress survives a restart mid-run
                 }
                 embedError = null;
-                saveVectors(config);
             } catch (AiException e) {
                 embedError = e.getMessage();
             } finally {

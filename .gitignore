@@ -29,3 +29,7 @@ data/
 */.vite-temp/
 .DS_Store
 Thumbs.db
+
+# Browser test output
+frontend/playwright-report/
+frontend/test-results/

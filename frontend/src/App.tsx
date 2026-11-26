@@ -9,8 +9,9 @@ import QuickCapture from './QuickCapture';
 import ScratchpadDrawer from './components/ScratchpadDrawer';
 import { Projects, ProjectDetail, Tasks, TaskDrawer, type Project, type Task } from './ProjectViews';
 import type { Account } from './SettingsStudio';
-import { api, ApiError, errorMessage, formatBytes, streamAI } from './lib/api';
+import { api, ApiError, errorMessage, formatBytes, markSignedIn, streamAI, upgradeLegacySession } from './lib/api';
 import { useRealtime, useRealtimeEvent, sendPresence } from './lib/realtime';
+import { desktopNotify } from './lib/desktopNotify';
 import './studio.css';
 import './signature.css';
 import './features.css';
@@ -131,6 +132,7 @@ export default function App() {
   const loadWorkspace = useCallback(async () => {
     if (!token) { setApiStatus('API ready · sign in to sync'); return; }
     try {
+      await upgradeLegacySession();
       await api('/api/health');
       const me = await api<Account & { workspace: { id: string; name: string } | null; preferences?: { theme?: ThemeChoice } }>('/api/auth/me');
       setAccount(me); setWorkspace(me.workspace?.name || 'Studio'); setWorkspaceId(me.workspace?.id || '');
@@ -162,7 +164,7 @@ export default function App() {
   useRealtimeEvent('task.deleted', ({ id }: { id: string }) => setTasks(list => list.filter(t => t.id !== id)));
   useRealtimeEvent('project.changed', (project: Project) => setProjects(list => project.archived ? list.filter(p => p.id !== project.id) : list.some(p => p.id === project.id) ? list.map(p => p.id === project.id ? project : p) : [project, ...list]));
   useRealtimeEvent('project.deleted', ({ id }: { id: string }) => { setProjects(list => list.filter(p => p.id !== id)); setTasks(list => list.filter(t => t.projectId !== id)); });
-  useRealtimeEvent('notification', (n: { title: string }) => { setUnreadCount(c => c + 1); if (!notificationsOpen) notify(n.title); });
+  useRealtimeEvent('notification', (n: { id?: string; title: string; body?: string; link?: string | null }) => { setUnreadCount(c => c + 1); if (!notificationsOpen) notify(n.title); desktopNotify(n, navigate); });
 
   useEffect(() => { sendPresence(location.pathname); if (window.innerWidth <= 768) setSidebarExpanded(false); setProfileMenu(false); }, [location.pathname]);
   useEffect(() => {
@@ -194,7 +196,8 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [navigate]);
 
-  const authDone = (value: string) => { localStorage.setItem('zynckle-token', value); setToken(value); if (!['/', ''].includes(location.pathname) && /^\/(signin|reset-password|verify-email)/.test(location.pathname)) navigate('/'); notify('You’re signed in'); };
+  // The session itself is in the HttpOnly cookie the server just set; only remember that we are signed in.
+  const authDone = (_value: string) => { markSignedIn(); setToken('cookie'); if (!['/', ''].includes(location.pathname) && /^\/(signin|reset-password|verify-email)/.test(location.pathname)) navigate('/'); notify('You’re signed in'); };
   const signOut = () => { api('/api/auth/logout', { method: 'POST' }).catch(() => {}); clearSession(); navigate('/'); };
 
   const addProject = async (name: string, description: string, due: string) => {
@@ -481,7 +484,7 @@ export default function App() {
     </aside>
 
     {sidebarExpanded && (
-      <div className="mobile-drawer-backdrop zy-mobile-only" onClick={toggleSidebar} aria-label="Close navigation" />
+      <div className="mobile-drawer-backdrop zy-mobile-only" onClick={toggleSidebar} aria-hidden="true" />
     )}
 
     <main className="main-area">
@@ -539,7 +542,7 @@ export default function App() {
         </div>
       </header>
       <div className="page-content" key={location.pathname.split('/').slice(0, 2).join('/')}><Suspense fallback={<PageLoader/>}><Routes>
-        <Route path="/" element={<Dashboard projects={projects} tasks={tasks} docs={docs} onToggleTask={toggleTask} onNew={() => setModal(true)} search={search} accountName={account.name} accountId={account.id} teamCount={teamCount} loaded={loaded} canEdit={canEdit} onAskAI={() => setAiOpen(true)} onSeedWorkspace={seedStarterWorkspace}/>}/>
+        <Route path="/" element={<Dashboard projects={projects} tasks={tasks} docs={docs} onToggleTask={toggleTask} onNew={() => setModal(true)} search={search} accountName={account.name} accountId={account.id} teamCount={teamCount} loaded={loaded} canEdit={canEdit} isAdmin={isAdmin} onAskAI={() => setAiOpen(true)} onSeedWorkspace={seedStarterWorkspace}/>}/>
         <Route path="/today" element={<TodayEdition tasks={tasks} projects={projects} accountId={account.id} accountName={account.name} workspace={workspace} onToggle={toggleTask} onOpenTask={setOpenTask} onCapture={() => setCaptureOpen(true)} canEdit={canEdit} onTaskCreated={t => setTasks(items => [normaliseTask(t), ...items.filter(x => x.id !== t.id)])} onSeedWorkspace={seedStarterWorkspace}/>}/>
         <Route path="/projects" element={<Projects projects={projects} onNew={() => setModal(true)} onDelete={deleteProject} search={search} canEdit={canEdit} onSeedWorkspace={seedStarterWorkspace}/>}/>
         <Route path="/project" element={<Navigate to="/projects" replace/>}/>

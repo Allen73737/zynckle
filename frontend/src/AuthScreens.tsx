@@ -32,8 +32,8 @@ export default function AuthGate({ onSuccess, theme, onTheme }: { onSuccess: (to
 
   useEffect(() => {
     api<{ google: boolean }>('/api/auth/providers').then(p => setGoogle(p.google)).catch(() => { });
-    const hash = new URLSearchParams(location.hash.slice(1)).get('token');
-    if (hash) { history.replaceState({}, '', '/'); onSuccess(hash); }
+    // Google sign-in returns to /signin#signed-in with the session already in the HttpOnly cookie.
+    if (location.hash === '#signed-in') { history.replaceState({}, '', '/'); onSuccess('cookie'); }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -88,6 +88,6 @@ export default function AuthGate({ onSuccess, theme, onTheme }: { onSuccess: (to
         </form>}
       {mode === 'register' || mode === 'login' ? <button className="auth-switch" onClick={() => switchMode(mode === 'register' ? 'login' : 'register')}>{mode === 'register' ? 'Already have an account? Sign in' : 'New to Zynckle? Create an account'}</button>
         : mode !== 'verify' && <button className="auth-switch" onClick={() => switchMode('login')}><ArrowLeft size={12} /> Back to sign in</button>}
-      <p className="auth-foot">Passwords are hashed with scrypt; sessions can be revoked from Settings. Keep the API behind HTTPS before allowing remote access.</p></section>
+      <p className="auth-foot">Passwords are hashed with bcrypt; sessions can be revoked from Settings. Keep the API behind HTTPS before allowing remote access.</p></section>
     <aside className="auth-aside"><div className="auth-aside-art"><span>z</span><i /><b /></div><p>Plan with clarity.<br />Make with intention.</p><span>YOUR WORK, IN GOOD COMPANY.</span></aside></div>;
 }

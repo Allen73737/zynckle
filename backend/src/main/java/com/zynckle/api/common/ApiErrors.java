@@ -1,7 +1,5 @@
 package com.zynckle.api.common;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -14,7 +12,9 @@ import java.util.Map;
 /** Every API error is JSON shaped as {"error": "..."}, which is what the frontend reads. */
 @RestControllerAdvice
 public class ApiErrors {
-    private static final Logger log = LoggerFactory.getLogger(ApiErrors.class);
+    private final ErrorReporter reporter;
+
+    public ApiErrors(ErrorReporter reporter) { this.reporter = reporter; }
 
     @ExceptionHandler(ApiException.class)
     ResponseEntity<Map<String, Object>> api(ApiException e) {
@@ -32,8 +32,21 @@ public class ApiErrors {
     }
 
     @ExceptionHandler(org.springframework.dao.DataAccessException.class)
-    ResponseEntity<Map<String, Object>> data(org.springframework.dao.DataAccessException e) {
-        log.error("Database error", e);
+    ResponseEntity<Map<String, Object>> data(org.springframework.dao.DataAccessException e, jakarta.servlet.http.HttpServletRequest request) {
+        reporter.server(request.getMethod() + " " + request.getRequestURI(), e);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).contentType(MediaType.APPLICATION_JSON).body(Map.of("error", "Something went wrong on the server"));
+    }
+
+    /** Framework errors keep their status (404, 405, 415…); anything else is an unexpected 500 and is reported. */
+    @ExceptionHandler(Exception.class)
+    ResponseEntity<Map<String, Object>> unexpected(Exception e, jakarta.servlet.http.HttpServletRequest request) {
+        if (e instanceof org.springframework.web.ErrorResponse er) {
+            int status = er.getStatusCode().value();
+            if (status >= 500) reporter.server(request.getMethod() + " " + request.getRequestURI(), e);
+            return ResponseEntity.status(status).contentType(MediaType.APPLICATION_JSON).body(Map.of("error", status == 404 ? "Not found" : status == 405 ? "Method not allowed" : "Request failed"));
+        }
+        if (e instanceof org.springframework.web.context.request.async.AsyncRequestNotUsableException) return null; // client went away mid-stream
+        reporter.server(request.getMethod() + " " + request.getRequestURI(), e);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).contentType(MediaType.APPLICATION_JSON).body(Map.of("error", "Something went wrong on the server"));
     }
 }

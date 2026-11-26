@@ -36,7 +36,7 @@ import { indentWithTab } from '@codemirror/commands';
 import { StreamLanguage, HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { stex } from '@codemirror/legacy-modes/mode/stex';
 import { tags } from '@lezer/highlight';
-import { api, errorMessage, getToken, timeAgo } from './lib/api';
+import { api, authHeaders, errorMessage, timeAgo } from './lib/api';
 import { extractPdfText, decompileToLatex, POPULAR_CITATIONS, type CitationItem, type DecompileResult } from './lib/pdfDecompiler';
 
 type LatexDoc = { id: string; title: string; content: string; updated: string };
@@ -271,10 +271,12 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
   const [docs, setDocs] = useState<LatexDoc[] | null>(null);
   const [activeId, setActiveId] = useState<string | null>(() => new URLSearchParams(location.search).get('doc'));
   const [title, setTitle] = useState('');
-  const [status, setStatus] = useState<{ available: boolean; version?: string | null; message: string } | null>(null);
+  const [status, setStatus] = useState<{ available: boolean; engine?: 'tex' | 'preview'; version?: string | null; message: string } | null>(null);
   const [pdf, setPdf] = useState('');
   const [errors, setErrors] = useState<LatexError[]>([]);
   const [log, setLog] = useState('');
+  const [previewNoteDismissed, setPreviewNoteDismissed] = useState(() => { try { return sessionStorage.getItem('zynckle-latex-preview-note') === 'hidden'; } catch { return false; } });
+  useEffect(() => { if (previewNoteDismissed) try { sessionStorage.setItem('zynckle-latex-preview-note', 'hidden'); } catch { /* ignore */ } }, [previewNoteDismissed]);
   const [compiling, setCompiling] = useState(false);
   const [compileDurationMs, setCompileDurationMs] = useState<number | null>(4);
   const [autoCompile, setAutoCompile] = useState(() => localStorage.getItem('zynckle-latex-auto') === 'yes');
@@ -370,7 +372,7 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
     fetch('/api/latex/status')
       .then(r => r.json())
       .then(setStatus)
-      .catch(() => setStatus({ available: true, message: 'Ready (Built-in engine)' }));
+      .catch(() => setStatus({ available: false, version: 'Compiler unreachable', message: 'The LaTeX service could not be reached. Check that the backend is running.' }));
 
     api<LatexDoc[]>('/api/documents?type=latex').then(async list => {
       if (list.length === 0 && canEdit) {
@@ -418,7 +420,7 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
     try {
       const response = await fetch('/api/latex/compile', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() }, credentials: 'same-origin',
         body: JSON.stringify({ source: source.current }),
         signal: controller.signal
       });
@@ -929,9 +931,9 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
           <span>{sidebarOpen ? 'Hide Docs' : 'Show Docs'}</span>
         </button>
 
-        <span className="compiler-pill">
-          <i className={status?.available ? 'online' : ''} />
-          {status ? (status.version || 'Fast TeX Engine') : 'Checking compiler…'}
+        <span className="compiler-pill" title={status?.message}>
+          <i className={status?.available ? (status.engine === 'preview' ? 'warn' : 'online') : ''} />
+          {status ? (status.version || 'LaTeX compiler') : 'Checking compiler…'}
         </span>
 
         {compileDurationMs !== null && (
@@ -1200,6 +1202,12 @@ export default function LatexStudio({ notify, canEdit }: { notify: (message: str
       </div>
 
       {/* Errors & Compiler Log Overlay */}
+      {status?.engine === 'preview' && !previewNoteDismissed && (
+        <div className="zy-latex-engine-note" role="note">
+          <span><strong>Preview renderer.</strong> {status.message}</span>
+          <button className="icon-button" onClick={() => setPreviewNoteDismissed(true)} aria-label="Dismiss"><X size={13}/></button>
+        </div>
+      )}
       {errors.length > 0 && (
         <div className="zy-latex-errors" role="alert">
           <header>

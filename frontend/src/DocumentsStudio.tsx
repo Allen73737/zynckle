@@ -2,7 +2,17 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { NavLink, useSearchParams } from 'react-router-dom';
 import { BookOpen, Sparkles, Maximize2, Minimize2, Check, ChevronDown, ChevronRight, Folder, FolderPlus, History, Lock, MessageSquare, MoreHorizontal, Plus, Save, Share2, Trash2, X, Pencil, CheckCheck, RotateCcw } from 'lucide-react';
 import ShareDialog from './components/ShareDialog';
-import { api, errorMessage, timeAgo, getToken } from './lib/api';
+import { api, ApiError, errorMessage, timeAgo } from './lib/api';
+
+/**
+ * Unsent edits are kept in this browser when the API cannot be reached, then saved automatically when
+ * the connection returns. They are only ever a copy: the server stays the source of truth.
+ */
+type Draft = { title: string; body: string; at: number };
+const draftKey = (id: string) => `zynckle-draft-${id}`;
+const readDraft = (id: string): Draft | null => { try { const raw = localStorage.getItem(draftKey(id)); return raw ? JSON.parse(raw) as Draft : null; } catch { return null; } };
+const writeDraft = (id: string, draft: Draft) => { try { localStorage.setItem(draftKey(id), JSON.stringify(draft)); return true; } catch { return false; } };
+const clearDraft = (id: string) => { try { localStorage.removeItem(draftKey(id)); } catch { /* ignore */ } };
 import { useRealtimeEvent } from './lib/realtime';
 import type { Peer } from './RichTextEditor';
 import { colorFor } from './RichTextEditor';
@@ -27,7 +37,8 @@ export default function DocumentsStudio({ onSave, notify, search, account, canEd
   const [active, setActive] = useState<string | null>(params.get('doc'));
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
-  const [saveState, setSaveState] = useState<'saved' | 'saving' | 'unsaved' | 'error'>('saved');
+  const [saveState, setSaveState] = useState<'saved' | 'saving' | 'unsaved' | 'error' | 'offline'>('saved');
+  const [draftFound, setDraftFound] = useState<Draft | null>(null);
   const [editorSeed, setEditorSeed] = useState(0);
   const [localOnly, setLocalOnly] = useState(false);
   const [peers, setPeers] = useState<Peer[]>([]);
@@ -70,6 +81,9 @@ export default function DocumentsStudio({ onSave, notify, search, account, canEd
     if (saveState === 'unsaved') flushSave();
     setActive(doc.id); setTitle(doc.title); setBody(doc.content); latest.current = { title: doc.title, body: doc.content };
     setSaveState('saved'); setLocalOnly(false); setPeers([]); setCommentsOpen(false); setMenu(false);
+    // A copy kept on this device that is newer than the server's version: offer to restore it.
+    const draft = readDraft(doc.id);
+    setDraftFound(draft && draft.at > Date.parse(doc.updated || '') && (draft.body !== doc.content || draft.title !== doc.title) ? draft : null);
     setParams(p => { const n = new URLSearchParams(p); n.set('doc', doc.id); return n; }, { replace: true });
   };
 
@@ -81,9 +95,29 @@ export default function DocumentsStudio({ onSave, notify, search, account, canEd
       const saved = await api<ApiDoc>('/api/documents', { body: { id: active, title: latest.current.title.trim() || 'Untitled document', content: latest.current.body, type: 'rich-text', snapshot } });
       setDocs(list => (list || []).map(d => d.id === saved.id ? { ...d, ...saved } : d));
       setSaveState('saved');
+      clearDraft(active);
       if (snapshot) notify('Revision saved');
-    } catch (e) { setSaveState('error'); notify(errorMessage(e, 'Document could not be saved')); }
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 0 && writeDraft(active, { ...latest.current, at: Date.now() })) {
+        setSaveState('offline');
+        notify('You are offline. Your changes are kept on this device and will be saved when you reconnect.');
+      } else { setSaveState('error'); notify(errorMessage(e, 'Document could not be saved')); }
+    }
   }, [active, canEdit, notify, sync]);
+  // Back online: send what was kept on this device.
+  useEffect(() => {
+    const retry = () => { if (active && readDraft(active)) persist(false); };
+    window.addEventListener('online', retry);
+    return () => window.removeEventListener('online', retry);
+  }, [active, persist]);
+  const restoreDraft = () => {
+    if (!draftFound) return;
+    setTitle(draftFound.title); setBody(draftFound.body); latest.current = { title: draftFound.title, body: draftFound.body };
+    // Same as restoring a version: seed a local editor from the copy, then save it as a new revision.
+    setLocalOnly(true); setEditorSeed(seed => seed + 1); setDraftFound(null);
+    persist(true);
+  };
+  const discardDraft = () => { if (active) clearDraft(active); setDraftFound(null); };
   const flushSave = () => { window.clearTimeout(saveTimer.current); persist(false); };
 
   const scheduleSave = () => { setSaveState('unsaved'); window.clearTimeout(saveTimer.current); saveTimer.current = window.setTimeout(() => persist(false), 1800); };
@@ -171,7 +205,7 @@ export default function DocumentsStudio({ onSave, notify, search, account, canEd
   const query = search.trim().toLowerCase();
   const visible = useMemo(() => (docs || []).filter(d => `${d.title} ${d.content.replace(/<[^>]*>/g, ' ')}`.toLowerCase().includes(query)), [docs, query]);
   const groups = useMemo(() => [{ id: '', name: 'Unfiled' }, ...folders].map(folder => ({ folder, items: visible.filter(d => (d.folderId || '') === folder.id) })), [folders, visible]);
-  const collab = useMemo(() => active && !localOnly ? { docId: active, token: getToken(), user: { name: account.name, color: colorFor(account.id || account.name) }, readOnly: !canEdit } : undefined, [active, localOnly, account.name, account.id, canEdit]);
+  const collab = useMemo(() => active && !localOnly ? { docId: active, token: '', user: { name: account.name, color: colorFor(account.id || account.name) }, readOnly: !canEdit } : undefined, [active, localOnly, account.name, account.id, canEdit]);
   const canShare = Boolean(current && (current.ownerId === account.id || isAdmin));
 
   return <>
@@ -189,9 +223,10 @@ export default function DocumentsStudio({ onSave, notify, search, account, canEd
       </aside>
       <section className="doc-editor">{current ? <>
         <input className="doc-title" value={title} onChange={event => { setTitle(event.target.value); latest.current.title = event.target.value; scheduleSave(); }} placeholder="Document title" readOnly={!canEdit} aria-label="Document title"/>
+        {draftFound && canEdit && <div className="zy-draft-banner" role="status"><span><strong>Unsaved changes from {timeAgo(draftFound.at)}</strong> were kept on this device while you were offline.</span><span><button className="button-primary" onClick={restoreDraft}>Restore them</button><button className="button-secondary" onClick={discardDraft}>Discard</button></span></div>}
         <div className="doc-toolbar">
           <span className="zy-doc-status">
-            <i className={`zy-save-dot ${saveState}`}/>{saveState === 'saving' ? 'Saving…' : saveState === 'unsaved' ? 'Unsaved changes' : saveState === 'error' ? 'Save failed — retry' : `Saved ${timeAgo(current.updated)}`}
+            <i className={`zy-save-dot ${saveState}`}/>{saveState === 'saving' ? 'Saving…' : saveState === 'unsaved' ? 'Unsaved changes' : saveState === 'error' ? 'Save failed — retry' : saveState === 'offline' ? 'Offline · kept on this device' : `Saved ${timeAgo(current.updated)}`}
             {collab ? <em className="zy-live">{peers.length ? 'Live' : 'Live · only you'}</em> : <em className="zy-live off">Local editing</em>}
             {current.visibility === 'private' && <em><Lock size={10}/> Private</em>}
             {peers.length > 0 && <span className="zy-peers">{peers.slice(0, 5).map((p, i) => <i key={i} style={{ background: p.color }} title={`${p.name} is editing`}>{p.name.split(/\s+/).map(s => s[0]).join('').slice(0, 2).toUpperCase()}</i>)}</span>}
@@ -240,6 +275,6 @@ export default function DocumentsStudio({ onSave, notify, search, account, canEd
       </aside>}
     </div>
     {historyOpen && <div className="doc-history-backdrop" onMouseDown={event => event.target === event.currentTarget && setHistoryOpen(false)}><section className="doc-history-panel" role="dialog" aria-modal="true" aria-labelledby="doc-history-title"><header><div><div className="eyebrow">SAVED SNAPSHOTS</div><h2 id="doc-history-title">Version history</h2><p>Restoring a snapshot replaces the current content for everyone and saves it as a new revision.</p></div><button className="icon-button" aria-label="Close version history" onClick={() => setHistoryOpen(false)}><X size={17}/></button></header>{historyBusy ? <div className="doc-history-empty">Loading saved versions…</div> : historyError ? <div className="doc-history-empty" role="alert">{historyError}</div> : versions.length ? <div className="doc-history-list">{versions.map(version => <article key={version.id}><div className="doc-history-meta"><strong>Version {version.number}</strong><time>{new Date(version.createdAt).toLocaleString()} · {version.author}</time></div><p>{version.title}</p><small>{version.content.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180) || 'Empty document'}</small>{canEdit && <button className="button-secondary" onClick={() => restore(version)}>Restore this version</button>}</article>)}</div> : <div className="doc-history-empty"><History size={20}/><h3>No saved history yet</h3><p>Save an edit to create your first revision.</p></div>}</section></div>}
-    {sharing && current && <ShareDialog documentId={current.id} canEdit={canEdit} title={current.title} visibility={current.visibility} shared={current.collaboratorIds || []} ownerId={current.ownerId} onClose={() => setSharing(false)} onSave={async v => { await patch({ visibility: v.visibility, collaboratorIds: v.shared }, 'Access updated'); }}/>}
+    {sharing && current && <ShareDialog linksBase={`/api/documents/${current.id}`} canEdit={canEdit} title={current.title} visibility={current.visibility} shared={current.collaboratorIds || []} ownerId={current.ownerId} onClose={() => setSharing(false)} onSave={async v => { await patch({ visibility: v.visibility, collaboratorIds: v.shared }, 'Access updated'); }}/>}
   </>;
 }

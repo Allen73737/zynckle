@@ -100,15 +100,15 @@ export const PLATFORM_TOPICS: Topic[] = [
     id: 4,
     category: 'engines',
     categoryLabel: 'Document & Research Engines',
-    title: 'Fast TeX Pure-JS Vector Compiler Engine',
+    title: 'LaTeX Studio with Live PDF',
     icon: FileCode2,
-    badge: '< 5ms Instant Vector PDF',
-    summary: 'Pure JavaScript LaTeX-to-PDF compilation delivering instant typography without OS process freezes.',
-    detail: 'Traditional LaTeX systems (MiKTeX, TeX Live) spawn external OS processes that freeze single-threaded Node event loops for 25+ seconds and fail on Windows user permissions. Zynckle features an integrated pure-JS vector compiler generating standard PDF 1.4 streams in under 5ms, with in-flight request cancellation. Compile errors are reported, never replaced with a placeholder PDF.',
+    badge: 'Real TeX, sandboxed',
+    summary: 'Write LaTeX beside a live PDF, compiled on the server by a real TeX engine when one is installed.',
+    detail: 'The server compiles with pdflatex, xelatex, lualatex or Tectonic when one is installed (set LATEX_COMPILER or put it on PATH). Without one, a simplified preview renderer draws titles, sections and paragraphs so you can keep writing, and the studio says so. Errors are reported with their line numbers instead of being replaced by a placeholder PDF.',
     specs: [
-      { label: 'Execution Speed', value: '~4-5ms per compile' },
-      { label: 'PDF Format', value: 'Standard PDF 1.4 Vector Typography' },
-      { label: 'Cancellation', value: 'Real-time AbortController signal handling' }
+      { label: 'Engines', value: 'pdflatex · xelatex · lualatex · Tectonic' },
+      { label: 'Safety', value: 'No shell escape, folder-only file access, 45 s limit' },
+      { label: 'Cancellation', value: 'Superseded compiles are aborted' }
     ],
     actionLink: '/latex',
     actionText: 'Launch LaTeX Studio'
@@ -120,7 +120,7 @@ export const PLATFORM_TOPICS: Topic[] = [
     title: 'Yjs CRDT Real-Time Document Synchronization',
     icon: Users,
     badge: 'Conflict-Free Replicated Data Types',
-    summary: 'Sub-millisecond collaborative co-authoring powered by Yjs state vectors and WebSockets.',
+    summary: 'Real-time collaborative co-authoring powered by Yjs CRDTs over WebSockets.',
     detail: 'Documents feature real-time multi-user co-editing over lightweight WebSockets using Yjs CRDTs. Multiple team members can write simultaneously with live colored awareness carets and text selections. State updates merge mathematically with zero lock-stepping, zero lost edits, and offline reconciliation.',
     specs: [
       { label: 'Sync Protocol', value: 'Yjs Binary State Vectors' },
@@ -287,14 +287,14 @@ export const PLATFORM_TOPICS: Topic[] = [
     id: 15,
     category: 'security',
     categoryLabel: 'Security & Governance',
-    title: 'Zero-Trust Security & Scrypt Cryptography',
+    title: 'Security: bcrypt and HttpOnly Sessions',
     icon: Lock,
-    badge: 'Hardware-Hardened Password Hashing',
-    summary: 'Scrypt password hashing, high-entropy session tokens, and instant remote session revocation.',
-    detail: 'Passwords are encrypted using memory-hard scrypt (N=16384, r=8, p=1) with cryptographically random salts, protecting against GPU and ASIC cracking attacks. Authentication sessions rely on opaque random tokens whose SHA-256 digests are stored on the server, enabling one-click remote signout across any individual device.',
+    badge: 'Sessions scripts cannot read',
+    summary: 'bcrypt password hashing, HttpOnly session cookies with CSRF protection, and per-device session revocation.',
+    detail: 'Passwords are hashed with bcrypt (cost 11) and never stored. Each sign-in creates a random 32-byte session token; only its SHA-256 digest is kept on the server, and the browser holds it in an HttpOnly, SameSite cookie that page scripts cannot read. Cookie-authenticated writes require a custom header that other sites cannot send, and only the app\'s own origins may make credentialed requests. Sessions can be revoked one by one or all at once from Settings.',
     specs: [
-      { label: 'Hashing Parameters', value: 'scrypt: N=16384, r=8, p=1, 64-byte key' },
-      { label: 'Sessions', value: 'Opaque 32-byte tokens, SHA-256 hashed at rest' },
+      { label: 'Password hashing', value: 'bcrypt, cost factor 11' },
+      { label: 'Sessions', value: 'HttpOnly cookie; 32-byte token, SHA-256 hashed at rest' },
       { label: 'Revocation', value: 'Per-device and global revoke-others endpoints' }
     ],
     actionLink: '/settings#security',
@@ -418,7 +418,7 @@ export default function AboutStudio({ notify: _notify }: { notify?: (msg: string
           </h1>
           <p className="welcome-sub">
             The unified collaborative workspace and research operating system. Explore the architectural foundation,
-            sub-5ms TeX compilation engine, real-time Yjs CRDTs, and zero-trust security model.
+            LaTeX studio with live PDF, real-time Yjs co-editing, and server-enforced permissions.
           </p>
         </div>
       </section>
@@ -427,13 +427,13 @@ export default function AboutStudio({ notify: _notify }: { notify?: (msg: string
       <section className="about-telemetry-grid">
         <div className="telemetry-card">
           <span className="telemetry-label">PLATFORM RUNTIME</span>
-          <span className="telemetry-value">v2.4.0 Production</span>
+          <span className="telemetry-value">v0.1.0</span>
           <span className="telemetry-status ok">● Server-backed workspace</span>
         </div>
         <div className="telemetry-card">
           <span className="telemetry-label">TEX COMPILATION ENGINE</span>
-          <span className="telemetry-value">&lt; 5ms Fast TeX</span>
-          <span className="telemetry-status ok">● Pure-JS Vector PDF 1.4</span>
+          <span className="telemetry-value">TeX or preview</span>
+          <span className="telemetry-status ok">● Compiled on the server</span>
         </div>
         <div className="telemetry-card">
           <span className="telemetry-label">REALTIME COLLABORATION</span>
@@ -442,8 +442,8 @@ export default function AboutStudio({ notify: _notify }: { notify?: (msg: string
         </div>
         <div className="telemetry-card">
           <span className="telemetry-label">SECURITY &amp; DEFENSE</span>
-          <span className="telemetry-value">Zero-Trust Scrypt</span>
-          <span className="telemetry-status ok">● Anti-SSRF &amp; Opaque CSP</span>
+          <span className="telemetry-value">bcrypt + HttpOnly</span>
+          <span className="telemetry-status ok">● CSRF-protected sessions</span>
         </div>
       </section>
 
@@ -566,7 +566,7 @@ export default function AboutStudio({ notify: _notify }: { notify?: (msg: string
           <h3>Designed for Technical Writers, Architects &amp; Research Engineers</h3>
           <p>
             Zynckle replaces fragmented software suites with one pitch-black, connected workspace.
-            Every tool is wired together with zero latency, zero process blocking, and zero vendor lock-in.
+            Every tool is wired together in one workspace you can host yourself.
           </p>
           <div className="footer-links-row">
             <NavLink to="/latex" className="button-primary">

@@ -19,7 +19,7 @@
   --ink: #f4f4f5;
   --ink-strong: #ffffff;
   --muted: #a1a1aa;
-  --muted-dim: #71717a;
+  --muted-dim: #84848c;
   --line: #27272a;
   --line-strong: #3f3f46;
   --line-focus: #52525b;
@@ -67,7 +67,7 @@
   --ink: #18181b;
   --ink-strong: #000000;
   --muted: #52525b;
-  --muted-dim: #71717a;
+  --muted-dim: #5f5f66;
   --line: #e4e4e7;
   --line-strong: #d4d4d8;
   --line-focus: #a1a1aa;
@@ -1637,7 +1637,7 @@ p {
   align-items: center;
   gap: 8px;
   font-size: 14px;
-  color: #a1a1aa;
+  color: var(--muted);
   font-weight: 550;
 }
 
@@ -1660,7 +1660,7 @@ p {
   gap: 6px;
   font-size: 14px;
   font-weight: 600;
-  color: #a1a1aa;
+  color: var(--muted);
   text-decoration: none;
   transition: all 180ms ease;
 }

@@ -21,6 +21,7 @@ export default function Dashboard({
   teamCount,
   loaded,
   canEdit,
+  isAdmin = false,
   onAskAI,
   onSeedWorkspace
 }: {
@@ -35,6 +36,7 @@ export default function Dashboard({
   teamCount: number;
   loaded: boolean;
   canEdit: boolean;
+  isAdmin?: boolean;
   onAskAI: () => void;
   onSeedWorkspace?: () => void;
 }) {
@@ -243,7 +245,7 @@ export default function Dashboard({
         </section>
       )}
 
-      {loaded && projects.length > 0 && <DailyBrief canEdit={canEdit}/>}
+      {loaded && projects.length > 0 && <DailyBrief canEdit={canEdit} isAdmin={isAdmin}/>}
 
       {/* Four Balanced Key Metric Cards */}
       <section className="overview-bento-grid">

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { AlarmClock, CalendarClock, FilePlus2, LoaderCircle, RefreshCw, Sparkles, Square, TrendingDown, UserRound } from 'lucide-react';
+import { AlarmClock, CalendarClock, FilePlus2, LoaderCircle, Mail, RefreshCw, Sparkles, Square, TrendingDown, UserRound } from 'lucide-react';
 import Markdown from './Markdown';
 import { api, errorMessage, streamAI } from './lib/api';
 
@@ -20,10 +20,11 @@ const HEALTH_LABEL = { 'on-track': 'On track', watch: 'Watch', 'at-risk': 'At ri
  * AI-written brief that narrates them, or a weekly team report. Each is cached in this browser
  * for its day or week, and the weekly report can be saved as a workspace document.
  */
-export default function DailyBrief({ canEdit = true, notify }: { canEdit?: boolean; notify?: (message: string) => void }) {
+export default function DailyBrief({ canEdit = true, isAdmin = false, notify }: { canEdit?: boolean; isAdmin?: boolean; notify?: (message: string) => void }) {
   const [kind, setKind] = useState<Kind>('daily');
   const [saving, setSaving] = useState(false);
   const [savedNote, setSavedNote] = useState('');
+  const [mailing, setMailing] = useState<'' | 'me' | 'team'>('');
   const [insights, setInsights] = useState<Insights | null>(null);
   const [aiAvailable, setAiAvailable] = useState(false);
   const [brief, setBrief] = useState('');
@@ -81,6 +82,18 @@ export default function DailyBrief({ canEdit = true, notify }: { canEdit?: boole
     finally { setSaving(false); }
   };
 
+  /** Email the report as plain text: to yourself, or (owners and admins) to everyone in the workspace. */
+  const emailReport = async (to: 'me' | 'team') => {
+    if (!brief || mailing) return;
+    if (to === 'team' && !window.confirm('Email this report to every member of the workspace?')) return;
+    setMailing(to); setError(''); setSavedNote('');
+    try {
+      const r = await api<{ sent: number; recipients: number }>('/api/insights/weekly/email', { body: { report: brief, to } });
+      setSavedNote(to === 'me' ? 'Sent to your email.' : `Sent to ${r.sent} of ${r.recipients} member${r.recipients === 1 ? '' : 's'}.`);
+    } catch (e) { setError(errorMessage(e, 'The report could not be emailed')); }
+    finally { setMailing(''); }
+  };
+
   if (!insights) return null;
   const { counts } = insights;
   const attention = [...insights.overdue, ...insights.dueSoon].slice(0, 5);
@@ -96,6 +109,8 @@ export default function DailyBrief({ canEdit = true, notify }: { canEdit?: boole
       <div><div className="eyebrow">{daily ? 'DAILY BRIEF' : 'WEEKLY REPORT · WEEK OF'} · {new Date(`${daily ? insights.today : weekOf(insights.today)}T12:00:00`).toLocaleDateString(undefined, daily ? { weekday: 'long', month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric' })}</div>
         <h2>{counts.overdue ? `${counts.overdue} overdue, ${counts.dueSoon} due soon` : counts.dueSoon ? `${counts.dueSoon} due in the next 3 days` : 'Nothing urgent today'}</h2></div>
       <div className="zy-brief-actions">
+        {!daily && brief && !writing && <button className="button-secondary" onClick={() => emailReport('me')} disabled={!!mailing}>{mailing === 'me' ? <LoaderCircle className="spin" size={14}/> : <Mail size={14}/>} Email me</button>}
+        {!daily && brief && !writing && isAdmin && <button className="button-secondary" onClick={() => emailReport('team')} disabled={!!mailing}>{mailing === 'team' ? <LoaderCircle className="spin" size={14}/> : <Mail size={14}/>} Email team</button>}
         {!daily && brief && !writing && canEdit && <button className="button-secondary" onClick={saveReport} disabled={saving}>{saving ? <LoaderCircle className="spin" size={14}/> : <FilePlus2 size={14}/>} Save as document</button>}
         {aiAvailable && (writing
           ? <button className="button-secondary" onClick={() => abort.current?.abort()}><Square size={13}/> Stop</button>
@@ -113,7 +128,7 @@ export default function DailyBrief({ canEdit = true, notify }: { canEdit?: boole
         {brief ? <Markdown source={brief} streaming={writing}/> : writing ? <div className="zy-typing-row"><div className="zy-typing"><i/><i/><i/></div><small>{daily ? 'Reading your workspace…' : 'Reading the last seven days…'}</small></div>
           : <p className="zy-muted-note">{!aiAvailable ? 'Configure an AI provider to get a written brief. The signals on the right are always live.' : daily ? 'Get a short, specific summary of what needs you today — written from your real tasks, deadlines and activity.' : 'A team report for the last seven days: what shipped, what started, and what is at risk. Save it to Documents to share it.'}</p>}
         {error && <p className="zy-inline-error" role="alert">{error}</p>}
-        {savedNote && <p className="zy-muted-note" role="status">{savedNote} <NavLink to="/documents">Open Documents</NavLink></p>}
+        {savedNote && <p className="zy-muted-note" role="status">{savedNote} {savedNote.startsWith('Saved') && <NavLink to="/documents">Open Documents</NavLink>}</p>}
       </div>
       <aside>
         {attention.length > 0 && <><div className="eyebrow">NEEDS ATTENTION</div><ul>{attention.map(t => <li key={t.id}><NavLink to={`/projects/${t.projectId}?task=${t.id}`}><strong>{t.title}</strong><small>{t.project} · {t.daysLate ? `${t.daysLate}d late` : `due ${t.due}`}</small></NavLink></li>)}</ul></>}

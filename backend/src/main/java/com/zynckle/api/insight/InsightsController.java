@@ -1,10 +1,15 @@
 package com.zynckle.api.insight;
 
+import com.zynckle.api.common.ApiException;
+import com.zynckle.api.common.RateLimiter;
+import com.zynckle.api.integration.Mailer;
 import com.zynckle.api.security.CurrentUser;
 import com.zynckle.api.task.TaskViews;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.sql.Timestamp;
@@ -23,11 +28,41 @@ import java.util.*;
 @RestController
 public class InsightsController {
     private final Insights insights;
+    private final Mailer mailer;
+    private final JdbcTemplate jdbc;
+    private final RateLimiter limiter;
 
-    public InsightsController(Insights insights) { this.insights = insights; }
+    public InsightsController(Insights insights, Mailer mailer, JdbcTemplate jdbc, RateLimiter limiter) {
+        this.insights = insights;
+        this.mailer = mailer;
+        this.jdbc = jdbc;
+        this.limiter = limiter;
+    }
 
     @GetMapping("/api/insights")
     public Map<String, Object> get(CurrentUser me) { return insights.compute(me); }
+
+    /**
+     * Email the weekly report the user just generated (Markdown, sent as plain text) to themselves,
+     * or, for owners and admins, to every member of the workspace.
+     */
+    @PostMapping("/api/insights/weekly/email")
+    public Map<String, Object> emailWeekly(CurrentUser me, @RequestBody Map<String, Object> body) {
+        limiter.check("weekly-email:" + me.workspaceId(), 5, 3_600_000);
+        String report = body.get("report") instanceof String r ? r.strip() : "";
+        if (report.isEmpty() || report.length() > 20_000) throw new ApiException(400, "Write the report first (up to 20,000 characters)");
+        boolean team = "team".equals(body.get("to"));
+        if (team && !me.isAdmin()) throw new ApiException(403, "Only owners and admins can email the whole team");
+        if (!mailer.configured()) throw new ApiException(503, "Email is not configured on this server. Set SMTP_HOST and SMTP_FROM to send reports.");
+        List<String> recipients = team
+            ? jdbc.queryForList("SELECT u.email FROM workspace_member m JOIN app_user u ON u.id = m.user_id WHERE m.workspace_id = ?", String.class, me.workspaceId())
+            : List.of(me.email());
+        String subject = "Weekly report · " + me.workspaceName();
+        String text = report + "\n\n—\nSent from Zynckle by " + me.name() + ". Open the workspace: " + mailer.link("/");
+        int sent = 0;
+        for (String to : recipients) if (mailer.send(to, subject, text)) sent++;
+        return Map.of("sent", sent, "recipients", recipients.size());
+    }
 
     @Service
     public static class Insights {

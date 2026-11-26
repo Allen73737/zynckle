@@ -144,3 +144,49 @@
 @media (prefers-reduced-motion: reduce) {
   .zy-tour-dots i, .zy-cal-day { transition: none; }
 }
+
+/* ---------- LaTeX engine status ---------- */
+.compiler-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border: 1px solid var(--line); border-radius: 14px; color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+.compiler-pill i { width: 7px; height: 7px; border-radius: 50%; background: var(--danger); }
+.compiler-pill i.online { background: #30a46c; }
+.compiler-pill i.warn { background: #f5a623; }
+.zy-latex-engine-note { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin: 0 0 10px; padding: 10px 12px; border: 1px solid rgba(245, 166, 35, .45); border-radius: var(--radius-sm); background: var(--surface-soft); color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+.zy-latex-engine-note strong { color: var(--ink-strong); }
+
+/* ---------- Shared website preview (public page) ---------- */
+.zy-shared-page.wide .zy-shared-head, .zy-shared-page.wide .zy-shared-main { max-width: 1280px; }
+.zy-shared-desc { margin: -12px 0 18px; color: var(--muted); }
+.zy-shared-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.zy-shared-frame-wrap { display: flex; justify-content: center; padding: 12px; overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-soft); }
+.zy-shared-frame { width: 100%; max-width: 100%; height: min(78vh, 900px); border: 1px solid var(--line); border-radius: var(--radius-sm); background: #fff; transition: width var(--motion-standard) var(--ease-out); }
+
+/* ---------- Desktop notifications toggle ---------- */
+.zy-desktop-notify { margin-top: 14px; }
+.zy-desktop-notify .zy-toggle > span { display: grid; gap: 3px; }
+.zy-desktop-notify small { color: var(--muted); font-size: 12px; font-weight: 400; }
+
+/* ---------- Saved views ---------- */
+.zy-view-select { max-width: 180px; }
+
+/* ---------- Offline drafts ---------- */
+.zy-save-dot.offline { background: #f5a623; }
+.zy-draft-banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 8px 0; padding: 10px 14px; border: 1px solid rgba(245, 166, 35, .45); border-radius: var(--radius-sm); background: var(--surface-soft); font-size: 13px; }
+.zy-draft-banner > span:last-child { display: flex; gap: 8px; }
+
+@media (max-width: 620px) {
+  .zy-shared-frame { height: 70vh; }
+  .zy-view-select { max-width: none; flex: 1 1 100%; }
+}
+@media (prefers-reduced-motion: reduce) { .zy-shared-frame { transition: none; } }
+
+/* Calendar weeks are ARIA rows but take no space of their own in the 7-column grid. */
+.zy-cal-row { display: contents; }
+
+/* ---------- Colour contrast (WCAG AA 4.5:1) ---------- */
+/* Hard-coded accent text colours get darker shades on light surfaces. */
+:root[data-theme=light] .telemetry-status.ok { color: #047857; }
+:root[data-theme=light] .zy-plan li em,
+:root[data-theme=light] .zy-brief-stats .alert,
+:root[data-theme=light] .zy-brief-stats .alert b { color: #c42b30; }
+/* The preview frame is white for embedded sites; its empty and blocked states sit on the app surface instead. */
+.preview-frame > .doc-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 24px; background: var(--surface); }

@@ -196,6 +196,7 @@ public class DocumentsController {
         Map<String, Object> d = row(me, id);
         if (!me.userId().equals(d.get("owner_id")) && !me.isAdmin()) throw new ApiException(403, "Only the author or a workspace admin can delete this document");
         jdbc.update("DELETE FROM doc_version WHERE document_id = ?", id);
+        jdbc.update("DELETE FROM share_link WHERE document_id = ?", id);
         jdbc.update("DELETE FROM doc_comment WHERE document_id = ?", id);
         jdbc.update("DELETE FROM document WHERE id = ?", id);
         collab.reset(id);

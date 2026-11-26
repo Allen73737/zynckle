@@ -68,7 +68,10 @@ public class CollabSocketHandler extends BinaryWebSocketHandler {
         raw.setBinaryMessageSizeLimit(4 * 1024 * 1024);
         Optional<CurrentUser> user = auth.resolve(EventSocketHandler.token(raw));
         String docId = documentId(raw);
-        if (user.isEmpty() || jdbc.queryForList("SELECT id FROM document WHERE id = ? AND workspace_id = ?", docId, user.get().workspaceId()).isEmpty()) {
+        // Private documents are only for their owner and collaborators, exactly as over REST.
+        java.util.Map<String, Object> doc = user.isEmpty() ? null : jdbc.queryForList("SELECT id, visibility, owner_id, collaborator_ids FROM document WHERE id = ? AND workspace_id = ?", docId, user.get().workspaceId())
+            .stream().findFirst().orElse(null);
+        if (user.isEmpty() || doc == null || !com.zynckle.api.document.DocumentsController.canSee(doc, user.get())) {
             raw.close(new CloseStatus(4403, "No access to this document"));
             return;
         }

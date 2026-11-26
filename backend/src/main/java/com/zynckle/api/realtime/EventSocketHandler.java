@@ -23,13 +23,15 @@ public class EventSocketHandler extends TextWebSocketHandler {
         this.json = json;
     }
 
+    /** The session from ?token= (API clients) or, for browsers, the HttpOnly session cookie. */
     static String token(WebSocketSession session) {
         String query = session.getUri() == null ? null : session.getUri().getRawQuery();
-        if (query == null) return "";
-        for (String part : query.split("&")) {
-            if (part.startsWith("token=")) return java.net.URLDecoder.decode(part.substring(6), java.nio.charset.StandardCharsets.UTF_8);
+        if (query != null) {
+            for (String part : query.split("&")) {
+                if (part.startsWith("token=") && part.length() > 6) return java.net.URLDecoder.decode(part.substring(6), java.nio.charset.StandardCharsets.UTF_8);
+            }
         }
-        return "";
+        return com.zynckle.api.security.SessionCookies.readHeader(session.getHandshakeHeaders().get("Cookie"));
     }
 
     @Override

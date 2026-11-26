@@ -17,6 +17,12 @@
   --warn: #d4d4d8;
 }
 
+/* Light theme: the status colours above are near-white and would vanish on white surfaces. */
+:root[data-theme=light] {
+  --ok: #18181b;
+  --warn: #52525b;
+}
+
 /* ---------- shared primitives ---------- */
 .zy-head-actions {
   display: flex;

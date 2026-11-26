@@ -1,7 +1,22 @@
 // Thin fetch wrapper shared by every module. Errors are surfaced as ApiError, never replaced with made-up data:
 // status 0 means the API could not be reached.
 
-export const getToken = () => localStorage.getItem('zynckle-token') || '';
+/**
+ * Browsers authenticate with an HttpOnly session cookie that page scripts cannot read. localStorage only
+ * records *that* this browser is signed in ('cookie'). A longer stored value is a token from an older
+ * build; upgradeLegacySession() moves it into the cookie once and forgets it.
+ */
+const SIGNED_IN = 'cookie';
+export const isSignedIn = () => Boolean(localStorage.getItem('zynckle-token'));
+export const markSignedIn = () => localStorage.setItem('zynckle-token', SIGNED_IN);
+const legacyToken = () => { const t = localStorage.getItem('zynckle-token') || ''; return t && t !== SIGNED_IN ? t : ''; };
+/** Headers for every API call: the CSRF header the server requires on cookie-authenticated writes. */
+export const authHeaders = (): Record<string, string> => { const t = legacyToken(); return { 'X-Zynckle-Request': '1', ...(t ? { Authorization: `Bearer ${t}` } : {}) }; };
+export async function upgradeLegacySession() {
+  if (!legacyToken()) return;
+  try { const r = await fetch('/api/auth/cookie', { method: 'POST', headers: authHeaders(), credentials: 'same-origin' }); if (r.ok) markSignedIn(); }
+  catch { /* offline: try again next load */ }
+}
 
 export class ApiError extends Error {
   constructor(message: string, public status: number, public data: Record<string, unknown> = {}) { super(message); }
@@ -10,13 +25,14 @@ export class ApiError extends Error {
 type Options = { method?: string; body?: unknown; raw?: BodyInit; headers?: Record<string, string>; signal?: AbortSignal };
 
 export async function api<T = unknown>(path: string, { method, body, raw, headers = {}, signal }: Options = {}): Promise<T> {
-  const token = getToken();
+  const signedIn = isSignedIn();
   let response: Response | null = null;
   try {
     response = await fetch(path, {
       method: method || (body !== undefined || raw !== undefined ? 'POST' : 'GET'),
       body: raw ?? (body !== undefined ? JSON.stringify(body) : undefined),
-      headers: { ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}), ...headers },
+      headers: { ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}), ...authHeaders(), ...headers },
+      credentials: 'same-origin',
       signal,
     });
   } catch (error) {
@@ -27,7 +43,7 @@ export async function api<T = unknown>(path: string, { method, body, raw, header
   const type = response.headers.get('content-type') || '';
   const data = type.includes('application/json') ? await response.json().catch(() => ({})) : null;
   if (!response.ok) {
-    if (response.status === 401 && token && path !== '/api/auth/login') window.dispatchEvent(new CustomEvent('zynckle:session-expired'));
+    if (response.status === 401 && signedIn && path !== '/api/auth/login') window.dispatchEvent(new CustomEvent('zynckle:session-expired'));
     throw new ApiError((data && (data as { error?: string }).error) || `Request failed (${response.status})`, response.status, data || {});
   }
   return (data ?? (await response.blob())) as T;
@@ -40,7 +56,7 @@ export function uploadWithProgress<T>(path: string, file: Blob, headers: Record<
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', path);
-    xhr.setRequestHeader('Authorization', `Bearer ${getToken()}`);
+    for (const [key, value] of Object.entries(authHeaders())) xhr.setRequestHeader(key, value);
     xhr.setRequestHeader('Content-Type', 'application/octet-stream');
     for (const [key, value] of Object.entries(headers)) xhr.setRequestHeader(key, value);
     xhr.upload.onprogress = event => { if (event.lengthComputable) onProgress?.(event.loaded / event.total); };
@@ -64,7 +80,7 @@ export async function streamAI(body: Record<string, unknown>, handlers: { onMeta
   try {
     const response = await fetch('/api/ai/stream', {
       method: 'POST', signal: handlers.signal,
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() }, credentials: 'same-origin',
       body: JSON.stringify(body),
     });
     if (!response.ok || !response.body) {

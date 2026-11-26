@@ -17,10 +17,14 @@ import java.util.*;
 public class DocumentController {
     private final JdbcTemplate jdbc;
     private final Activity activity;
+    private final LatexEngine latex;
+    private final com.zynckle.api.common.ErrorReporter errors;
 
-    public DocumentController(JdbcTemplate jdbc, Activity activity) {
+    public DocumentController(JdbcTemplate jdbc, Activity activity, LatexEngine latex, com.zynckle.api.common.ErrorReporter errors) {
         this.jdbc = jdbc;
         this.activity = activity;
+        this.latex = latex;
+        this.errors = errors;
     }
 
     private static String text(Object value) {
@@ -45,28 +49,45 @@ public class DocumentController {
 
     // Document CRUD, folders, revisions and comments live in DocumentsController.
 
+    /** Says honestly which engine compiles: a real TeX installation, or the simplified preview renderer. */
     @GetMapping("/latex/status")
     public Map<String, Object> latexStatus() {
+        if (latex.available()) return Map.of(
+            "available", true, "engine", "tex", "compiler", latex.name(),
+            "version", latex.name() + " (full LaTeX)",
+            "message", "Compiling with " + latex.name() + ". Packages installed on the server are available.");
         return Map.of(
-            "available", true,
-            "compiler", "built-in",
-            "version", "Zynckle Spring Boot TeX Engine (Built-in)",
-            "message", "High-performance instant compiler ready"
-        );
+            "available", true, "engine", "preview", "compiler", "preview",
+            "version", "Preview renderer (simplified)",
+            "message", latex.disabledReason() != null
+                ? latex.disabledReason() + " Until then, PDFs come from a simplified renderer without real typesetting, math layout or packages."
+                : "No TeX installation was found, so PDFs come from a simplified renderer: title, sections, paragraphs and lists, without real typesetting, math layout or packages. Install TeX Live or Tectonic on the server (or set LATEX_COMPILER) for full LaTeX.");
     }
 
     @PostMapping("/latex/compile")
-    public ResponseEntity<byte[]> compileLatex(@RequestBody Map<String, Object> body) {
-        String source = (String) body.getOrDefault("source", "");
-        byte[] pdfBytes = LatexPdfCompiler.compile(source);
-
+    public ResponseEntity<?> compileLatex(CurrentUser me, @RequestBody Map<String, Object> body) {
+        String source = body.get("source") instanceof String s ? s : "";
+        if (source.length() > 2_000_000) throw new ApiException(413, "The document is larger than 2 MB");
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_PDF);
         headers.set(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"document.pdf\"");
-        headers.set("x-latex-warnings", "0");
-        headers.set("x-compiler", "zynckle-spring-tex");
-
-        return ResponseEntity.ok().headers(headers).body(pdfBytes);
+        if (!latex.available()) {
+            headers.set("x-compiler", "preview");
+            return ResponseEntity.ok().headers(headers).body(LatexPdfCompiler.compile(source));
+        }
+        try {
+            LatexEngine.Result result = latex.compile(source);
+            if (result.pdf() == null) return ResponseEntity.status(422).contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("error", "LaTeX reported errors", "errors", result.errors(), "details", result.log()));
+            headers.set("x-compiler", latex.name());
+            return ResponseEntity.ok().headers(headers).body(result.pdf());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ApiException(503, "Compilation was interrupted");
+        } catch (java.io.IOException e) {
+            errors.server("LaTeX compile", e);
+            throw new ApiException(500, "The LaTeX compiler could not be started");
+        }
     }
 
     @PostMapping("/latex/decompile-pdf")
