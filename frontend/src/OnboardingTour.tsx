@@ -20,7 +20,10 @@ export default function OnboardingTour({ onClose }: { onClose: () => void }) {
   const last = step === STEPS.length - 1;
   const { icon: Icon, title, body, cta } = STEPS[step];
 
-  useEffect(() => { primary.current?.focus(); }, [step]);
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+  useEffect(() => { primary.current?.focus({ preventScroll: true }); }, [step]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
