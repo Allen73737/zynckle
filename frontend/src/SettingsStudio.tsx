@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Bell, Bot, HardDrive, Info, KeyRound, Laptop, Monitor, Moon, Palette, Plug, Save, Shield, Sun, Trash2, User, Users, MailCheck, ScrollText, ArrowRight } from 'lucide-react';
+import { Bell, Bot, Download, HardDrive, Info, KeyRound, Laptop, Monitor, Moon, Palette, Plug, Save, Shield, Sun, Trash2, User, Users, MailCheck, ScrollText, ArrowRight } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { api, errorMessage, formatBytes, timeAgo } from './lib/api';
 import { desktopEnabled, desktopSupported, setDesktopNotifications } from './lib/desktopNotify';
@@ -66,6 +66,18 @@ export default function SettingsStudio({ account, workspace, workspaceId, worksp
   const saveAi = () => run(async () => { await api('/api/auth/preferences', { method: 'PATCH', body: { aiProvider: aiPref.provider, aiModel: aiPref.model } }); onAccount({ ...account, preferences: { ...account.preferences, aiProvider: aiPref.provider, aiModel: aiPref.model } }); notify('AI preference saved'); });
   const deleteWorkspace = () => { if (account.role !== 'OWNER') return setError('Only the workspace owner can delete it'); if (workspaceCount < 2) return setError('Create another workspace before deleting your only workspace'); if (!window.confirm(`Delete workspace ${workspace} and all of its saved content? This cannot be undone.`)) return; run(async () => { await api(`/api/workspaces/${workspaceId}`, { method: 'DELETE' }); window.location.assign('/'); }); };
   const deleteAccount = (e: React.FormEvent) => { e.preventDefault(); run(async () => { await api('/api/auth/account', { method: 'DELETE', body: { password: deletePassword } }); notify('Account deleted'); window.setTimeout(onSignOut, 350); }); };
+  const exportWorkspaceData = () => run(async () => {
+    notify('Exporting workspace data…');
+    const data = await api<Record<string, unknown>>('/api/workspace/export');
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `zynckle-workspace-${workspace.toLowerCase().replace(/[^a-z0-9]/g, '-')}-export.json`;
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    notify('Workspace data exported');
+  });
   const safeProviders = Array.isArray(providers) ? providers : [];
   const provider = safeProviders.find(p => p.id === aiPref.provider) || safeProviders.find(p => p.configured);
 
@@ -84,6 +96,7 @@ export default function SettingsStudio({ account, workspace, workspaceId, worksp
             {sessions && sessions.length > 1 && <button className="button-secondary" onClick={revokeOthers} disabled={busy}>Sign out all other sessions</button>}</section></>}
 
         {section === 'workspace' && <><section className="settings-card"><div className="eyebrow">WORKSPACE</div><h2>{workspace}</h2><form onSubmit={saveWorkspace}><label>Workspace name<input value={workspaceName} onChange={e => setWorkspaceName(e.target.value)} maxLength={80} required disabled={!admin}/></label><div className="settings-caption">Your role: {account.role.toLowerCase()}. Owners and admins can rename this workspace. Manage people and ownership from Team.</div><button className="button-primary" disabled={!admin || busy}><Save size={14}/> Save workspace</button></form></section>
+          <section className="settings-card"><div className="eyebrow">DATA PORTABILITY</div><h2>Export workspace data</h2><p>Download a complete JSON archive of all projects, tasks, documents, comments, and file records in this workspace. Suitable for offline backup or migration.</p><button type="button" className="button-secondary" onClick={exportWorkspaceData} disabled={busy}><Download size={14}/> Export workspace archive (.json)</button></section>
           <section className="settings-card settings-danger"><div className="eyebrow">WORKSPACE OWNERSHIP</div><h2>Delete this workspace</h2><p>This removes all projects, tasks, documents, files, code and previews in the current workspace. Remove its members or transfer ownership first. You need another workspace to keep using Zynckle.</p><button className="button-secondary danger" onClick={deleteWorkspace} disabled={account.role !== 'OWNER' || workspaceCount < 2 || busy}><Trash2 size={14}/> Delete {workspace}</button></section></>}
 
         {section === 'appearance' && <section className="settings-card"><div className="eyebrow">APPEARANCE</div><h2>Quiet by design</h2><p>Choose a bright or low-light workspace, or follow your operating system. Your choice is saved immediately.</p>

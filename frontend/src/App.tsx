@@ -28,6 +28,8 @@ const LatexStudio = lazy(() => import('./LatexStudio'));
 const TeamStudio = lazy(() => import('./TeamStudio'));
 const SettingsStudio = lazy(() => import('./SettingsStudio'));
 const AboutStudio = lazy(() => import('./AboutStudio'));
+const PrivacyStudio = lazy(() => import('./LegalStudio').then(m => ({ default: m.PrivacyStudio })));
+const TermsStudio = lazy(() => import('./LegalStudio').then(m => ({ default: m.TermsStudio })));
 const Markdown = lazy(() => import('./Markdown'));
 const TodayEdition = lazy(() => import('./TodayEdition'));
 const SharedDocument = lazy(() => import('./SharedDocument'));
@@ -42,7 +44,7 @@ const nav = [
   { label: 'Zynckle AI', icon: Sparkles, to: '/ai' }, { label: 'LaTeX studio', icon: FileCode2, to: '/latex' }, { label: 'Code', icon: Code2, to: '/code' }, { label: 'Drive', icon: HardDrive, to: '/drive' }, { label: 'Website previews', icon: Activity, to: '/previews' }, { label: 'Team', icon: Users, to: '/team' },
   { label: 'About', icon: Info, to: '/about' },
 ];
-const crumbFor = (path: string) => ({ '': 'Overview', today: 'The Daily Edition', projects: 'Projects', project: 'Projects', tasks: 'My tasks', task: 'My tasks', documents: 'Documents', doc: 'Documents', docs: 'Documents', ai: 'Zynckle AI', architecture: 'AI Architecture', workshop: 'AI Workshop', latex: 'LaTeX studio', 'latex-studio': 'LaTeX studio', code: 'Code', drive: 'Drive', files: 'Drive', previews: 'Website previews', preview: 'Website previews', team: 'Team', settings: 'Settings', about: 'About Zynckle' } as Record<string, string>)[path.split('/')[1] || ''] || 'Workspace';
+const crumbFor = (path: string) => ({ '': 'Overview', today: 'The Daily Edition', projects: 'Projects', project: 'Projects', tasks: 'My tasks', task: 'My tasks', documents: 'Documents', doc: 'Documents', docs: 'Documents', ai: 'Zynckle AI', architecture: 'AI Architecture', workshop: 'AI Workshop', latex: 'LaTeX studio', 'latex-studio': 'LaTeX studio', code: 'Code', drive: 'Drive', files: 'Drive', previews: 'Website previews', preview: 'Website previews', team: 'Team', settings: 'Settings', about: 'About Zynckle', privacy: 'Privacy Policy', terms: 'Terms of Service' } as Record<string, string>)[path.split('/')[1] || ''] || 'Workspace';
 const normaliseTask = (t: Task): Task => ({ ...t, date: t.date || t.due || 'No date', done: t.done || t.status === 'Done', priority: t.priority || 'Normal' });
 
 function PageLoader() {
@@ -189,7 +191,13 @@ export default function App() {
   useRealtimeEvent('project.deleted', ({ id }: { id: string }) => { setProjects(list => list.filter(p => p.id !== id)); setTasks(list => list.filter(t => t.projectId !== id)); });
   useRealtimeEvent('notification', (n: { id?: string; title: string; body?: string; link?: string | null }) => { setUnreadCount(c => c + 1); if (!notificationsOpen) notify(n.title); desktopNotify(n, navigate); });
 
-  useEffect(() => { sendPresence(location.pathname); if (window.innerWidth <= 768) setSidebarExpanded(false); setProfileMenu(false); }, [location.pathname]);
+  useEffect(() => {
+    sendPresence(location.pathname);
+    const pageTitle = crumbFor(location.pathname);
+    document.title = pageTitle === 'Overview' ? 'Zynckle — Studio' : `${pageTitle} · Zynckle`;
+    if (window.innerWidth <= 768) setSidebarExpanded(false);
+    setProfileMenu(false);
+  }, [location.pathname]);
   useEffect(() => {
     const onToggleScratch = () => setScratchpadOpen(o => !o);
     window.addEventListener('zynckle:toggle-scratchpad', onToggleScratch);
@@ -643,10 +651,12 @@ export default function App() {
         <Route path="/team" element={<TeamStudio token={token} notify={notify} presence={presence} onWorkspaceChanged={() => window.location.assign('/team')}/>}/>
         <Route path="/settings" element={<SettingsStudio token={token} account={account} workspace={workspace} workspaceId={workspaceId} workspaceCount={workspaces.length} theme={themeChoice} onThemeChoice={chooseTheme} onAccount={setAccount} onWorkspace={name => { setWorkspace(name); setWorkspaces(items => items.map(item => item.current ? { ...item, name } : item)); }} onSignOut={signOut} notify={notify}/>}/>
         <Route path="/about" element={<AboutStudio notify={notify}/>}/>
+        <Route path="/privacy" element={<PrivacyStudio/>}/>
+        <Route path="/terms" element={<TermsStudio/>}/>
         <Route path="/verify-email" element={<VerifyEmail onDone={() => { loadWorkspace(); navigate('/settings#profile'); }}/>}/>
         <Route path="*" element={<NotFound/>}/>
       </Routes></Suspense>
-      <footer className="page-footer"><span>© 2026 Zynckle Studio</span><span className="api-status"><i className={apiStatus.startsWith('Connected') ? 'online' : ''}/>{apiStatus}</span><span className="api-status" title="Realtime updates"><i className={liveStatus === 'live' ? 'online' : ''}/>{liveStatus === 'live' ? 'Live sync on' : liveStatus === 'connecting' ? 'Connecting live sync' : 'Live sync offline · retrying'}</span><button className="footer-help" onClick={() => setPaletteOpen(true)}><Command size={13}/> Ctrl K</button><NavLink to="/about" className="footer-help"><Info size={13}/> About &amp; 20 Topics</NavLink><NavLink to="/ai" className="footer-help"><Sparkles size={13}/> AI tools</NavLink></footer></div></main>
+      <footer className="page-footer"><span>© 2026 Zynckle Studio</span><span className="api-status"><i className={apiStatus.startsWith('Connected') ? 'online' : ''}/>{apiStatus}</span><span className="api-status" title="Realtime updates"><i className={liveStatus === 'live' ? 'online' : ''}/>{liveStatus === 'live' ? 'Live sync on' : liveStatus === 'connecting' ? 'Connecting live sync' : 'Live sync offline · retrying'}</span><button className="footer-help" onClick={() => setPaletteOpen(true)}><Command size={13}/> Ctrl K</button><NavLink to="/about" className="footer-help"><Info size={13}/> About</NavLink><NavLink to="/privacy" className="footer-help">Privacy</NavLink><NavLink to="/terms" className="footer-help">Terms</NavLink><NavLink to="/ai" className="footer-help"><Sparkles size={13}/> AI tools</NavLink></footer></div></main>
     {openTask && <TaskDrawer key={openTask.id} task={tasks.find(t => t.id === openTask.id) || openTask} onClose={() => setOpenTask(null)} onSave={updateTask} onDelete={deleteTask} canEdit={canEdit}/>}
     {editingProject && <EditProjectModal project={editingProject} onClose={() => setEditingProject(null)} onSave={updateProject}/>}
     {notificationsOpen && <NotificationsPanel token={token} onClose={() => setNotificationsOpen(false)} onUnreadChange={setUnreadCount}/>}

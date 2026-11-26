@@ -8,14 +8,17 @@ import {
 } from '../lib/core.mjs';
 import { deleteWorkspaceData } from './workspaces.mjs';
 import { removeObject } from '../lib/storage.mjs';
+import { isEmailConfigured, sendVerificationEmail, sendPasswordResetEmail } from '../lib/email.mjs';
 
 const devLink = (path, token) => (config.exposeDevLinks ? `${config.publicUrl}${path}${token}` : undefined);
-const emailDelivery = false; // No SMTP integration is configured in this build.
 
 function startVerification(user) {
   const token = issueToken('verify', user.id, 3 * 86_400_000);
   const link = `${config.publicUrl}/verify-email?token=${token}`;
   console.log(`[zynckle] Email verification link for ${user.email}: ${link}`);
+  if (isEmailConfigured()) {
+    sendVerificationEmail(user, link).catch(err => console.error('[zynckle] Email verification dispatch failed:', err));
+  }
   return devLink('/verify-email?token=', token);
 }
 
@@ -45,7 +48,7 @@ export default function register(router) {
     const workspace = createWorkspace(user, ctx.body.workspaceName ? str(ctx.body.workspaceName, { min: 1, max: 80, field: 'Workspace name' }) : `${name.split(/\s+/)[0]}'s studio`);
     const verifyUrl = startVerification(user);
     const token = createSession(user, ctx.req);
-    return [201, { token, user: publicUser(user), workspace, verifyUrl, emailDelivery }];
+    return [201, { token, user: publicUser(user), workspace, verifyUrl, emailDelivery: isEmailConfigured() }];
   }, { auth: false });
 
   router.post('/api/auth/login', async ctx => {
@@ -72,11 +75,15 @@ export default function register(router) {
     let resetUrl;
     if (user) {
       const token = issueToken('reset', user.id, 3_600_000);
-      console.log(`[zynckle] Password reset link for ${email}: ${config.publicUrl}/reset-password?token=${token}`);
+      const link = `${config.publicUrl}/reset-password?token=${token}`;
+      console.log(`[zynckle] Password reset link for ${email}: ${link}`);
+      if (isEmailConfigured()) {
+        sendPasswordResetEmail(user, link).catch(err => console.error('[zynckle] Password reset dispatch failed:', err));
+      }
       resetUrl = devLink('/reset-password?token=', token);
     }
     // Same response whether or not the account exists, to avoid account enumeration.
-    return { sent: true, emailDelivery, resetUrl: user ? resetUrl : undefined, devMode: config.exposeDevLinks };
+    return { sent: true, emailDelivery: isEmailConfigured(), resetUrl: user ? resetUrl : undefined, devMode: config.exposeDevLinks };
   }, { auth: false });
 
   router.post('/api/auth/reset', async ctx => {

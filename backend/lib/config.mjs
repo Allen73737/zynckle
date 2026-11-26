@@ -58,6 +58,17 @@ export const config = {
     // Any OpenAI-compatible server: Ollama, LM Studio, vLLM, OpenAI itself. The key is optional.
     custom: { url: (env.CUSTOM_AI_URL || '').replace(/\/$/, ''), key: env.CUSTOM_AI_API_KEY || '', model: env.CUSTOM_AI_MODEL || '', label: env.CUSTOM_AI_LABEL || 'OpenAI-compatible' },
   },
+  email: {
+    from: env.EMAIL_FROM || 'Zynckle <notifications@zynckle.com>',
+    resendApiKey: env.RESEND_API_KEY || '',
+    smtp: env.SMTP_HOST ? {
+      host: env.SMTP_HOST,
+      port: Number(env.SMTP_PORT || 587),
+      secure: env.SMTP_SECURE === 'true',
+      user: env.SMTP_USER || '',
+      pass: env.SMTP_PASS || '',
+    } : null,
+  },
   google: { clientId: env.GOOGLE_CLIENT_ID || '', clientSecret: env.GOOGLE_CLIENT_SECRET || '' },
   storage: {
     driver: env.R2_ENDPOINT && env.R2_BUCKET && env.R2_ACCESS_KEY_ID && env.R2_SECRET_ACCESS_KEY ? 's3' : 'local',

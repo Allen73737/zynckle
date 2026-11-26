@@ -5,6 +5,7 @@ import { now, id, createWorkspace, membership, publicUser, requireAdmin, isAdmin
 import { removeObject } from '../lib/storage.mjs';
 import { resetCollaborativeState } from '../lib/realtime.mjs';
 import { config } from '../lib/config.mjs';
+import { isEmailConfigured, sendTeamInviteEmail } from '../lib/email.mjs';
 
 /** Remove a workspace and everything it owns, including stored binaries. */
 export async function deleteWorkspaceData(workspaceId) {
@@ -38,6 +39,38 @@ export default function register(router) {
   router.get('/api/workspaces', async ctx => db.workspaceMembers.filter(m => m.userId === ctx.user.id)
     .map(m => db.workspaces.find(w => w.id === m.workspaceId)).filter(Boolean)
     .map(w => workspaceSummary(w, ctx.user.id, ctx.workspace.id)));
+
+  router.get('/api/workspace/export', async ctx => {
+    const wsId = ctx.workspace.id;
+    const wsProjects = db.projects.filter(p => p.workspaceId === wsId);
+    const projectIds = new Set(wsProjects.map(p => p.id));
+    const wsTasks = db.tasks.filter(t => projectIds.has(t.projectId));
+    const taskIds = new Set(wsTasks.map(t => t.id));
+    const wsComments = db.comments.filter(c => taskIds.has(c.taskId));
+    const wsDocs = db.documents.filter(d => d.workspaceId === wsId && (d.visibility !== 'private' || d.ownerId === ctx.user.id));
+    const docIds = new Set(wsDocs.map(d => d.id));
+    const wsDocVersions = db.documentVersions.filter(v => docIds.has(v.documentId));
+    const wsDocComments = db.docComments.filter(c => docIds.has(c.documentId));
+    const wsFiles = db.files.filter(f => f.workspaceId === wsId && (f.visibility !== 'private' || f.ownerId === ctx.user.id))
+      .map(f => ({ id: f.id, name: f.name, sizeBytes: f.sizeBytes, mimeType: f.mimeType, createdAt: f.createdAt, ownerId: f.ownerId }));
+    const wsFolders = db.folders.filter(f => f.workspaceId === wsId);
+    const wsMembers = db.workspaceMembers.filter(m => m.workspaceId === wsId);
+
+    return {
+      version: '1.0',
+      exportedAt: now(),
+      workspace: { id: ctx.workspace.id, name: ctx.workspace.name, createdAt: ctx.workspace.createdAt },
+      members: wsMembers,
+      projects: wsProjects,
+      tasks: wsTasks,
+      taskComments: wsComments,
+      documents: wsDocs,
+      documentVersions: wsDocVersions,
+      docComments: wsDocComments,
+      files: wsFiles,
+      folders: wsFolders,
+    };
+  });
 
   router.post('/api/workspaces', async ctx => {
     const name = str(ctx.body.name, { min: 1, max: 80, field: 'Workspace name' });
@@ -159,8 +192,18 @@ export default function register(router) {
       emit({ type: 'notification', userId: existingUser.id, data: notification });
     }
     logActivity(ctx, 'invited', 'invite', { id: invite.id, name: email }, { audit: true });
-    console.log(`[zynckle] Invite for ${email}: ${config.publicUrl}${invite.inviteUrl}`);
-    return [201, { id: invite.id, email, role, inviteUrl: invite.inviteUrl, createdAt: invite.createdAt, expiresAt: invite.expiresAt, emailDelivery: false }];
+    const fullInviteLink = `${config.publicUrl}${invite.inviteUrl}`;
+    console.log(`[zynckle] Invite for ${email}: ${fullInviteLink}`);
+    if (isEmailConfigured()) {
+      sendTeamInviteEmail({
+        email,
+        workspaceName: ctx.workspace.name,
+        inviterName: ctx.user.name,
+        role,
+        link: fullInviteLink,
+      }).catch(err => console.error('[zynckle] Team invite dispatch failed:', err));
+    }
+    return [201, { id: invite.id, email, role, inviteUrl: invite.inviteUrl, createdAt: invite.createdAt, expiresAt: invite.expiresAt, emailDelivery: isEmailConfigured() }];
   });
 
   router.post('/api/team/invitations/accept', async ctx => {
