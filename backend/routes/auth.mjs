@@ -110,7 +110,7 @@ export default function register(router) {
     return { verified: true, email: user.email };
   }, { auth: false });
 
-  router.get('/api/auth/providers', async () => ({ password: true, google: Boolean(config.google.clientId && config.google.clientSecret), emailDelivery }), { auth: false });
+  router.get('/api/auth/providers', async () => ({ password: true, google: Boolean(config.google.clientId && config.google.clientSecret), emailDelivery: isEmailConfigured() }), { auth: false });
 
   // ---- Google OAuth (only active when credentials are configured) ----
   router.get('/api/auth/google/start', async ctx => {
@@ -159,7 +159,7 @@ export default function register(router) {
   router.post('/api/auth/verify/resend', async ctx => {
     rateLimit(`verify:${ctx.user.id}`, 3, 600_000);
     if (ctx.user.emailVerified) return { verified: true };
-    return { sent: true, emailDelivery, verifyUrl: startVerification(ctx.user) };
+    return { sent: true, emailDelivery: isEmailConfigured(), verifyUrl: startVerification(ctx.user) };
   });
 
   router.patch('/api/auth/profile', async ctx => {
